@@ -1,0 +1,2 @@
+Pricol2/Sound/startIntroVideo.mp4 filter=lfs diff=lfs merge=lfs -text
+Pricol2/Sound/endIntroVideo.mp4 filter=lfs diff=lfs merge=lfs -text
