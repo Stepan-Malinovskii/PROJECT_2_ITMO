@@ -26,28 +26,30 @@ int main()
 	auto& event = EventSystem::getInstance();
 	event.subscribe<int>("RESET_GAME", [&](const int NON) {
 		sfe::Movie movie;
+
 		if (!movie.openFromFile("Sound/startIntroVideo.mp4")) return;
 		movie.fit(0.0f, 0.0f, (float)window.getSize().x, (float)window.getSize().y);
 		movie.play();
+
 		SoundManager::stopAllSound();
 		SoundManager::playerMusic(StartIntro);
 
-		//while (movie.getStatus() == sfe::Status::Playing) // Вернуть в итоговой версии
-		//{
-		//	sf::Event event;
-		//	while (window.pollEvent(event)) 
-		//	{
-		//		if (event.type == sf::Event::Closed)
-		//		{
-		//			window.close();
-		//			return;
-		//		}
-		//	}
-		//	window.clear();	
-		//	movie.update();
-		//	window.draw(movie);
-		//	window.display();
-		//}
+		while (movie.getStatus() == sfe::Status::Playing) // Вернуть в итоговой версии
+		{
+			sf::Event event;
+			while (window.pollEvent(event)) 
+			{
+				if (event.type == sf::Event::Closed)
+				{
+					window.close();
+					return;
+				}
+			}
+			window.clear();	
+			movie.update();
+			window.draw(movie);
+			window.display();
+		}
 
 		window.clear();
 		});
