@@ -1,10 +1,9 @@
-#pragma once
 #ifndef MAP_H
 #define MAP_H
 
-#include "Resources.h"
-#include "Sprite.h"
-#include "CONST.h"
+#include "resources.h"
+#include "sprite.h"
+#include "const.h"
 #include <SFML/Graphics/RenderTarget.hpp>
 #include <SFML/Graphics/Texture.hpp>
 #include <SFML/Graphics/Image.hpp>
@@ -16,32 +15,27 @@
 #include <string>
 #include <set>
 
-class Map
-{
+class Map {
 public:
-	void SetNewOnGrid(int x, int y, int layerNumber, int value);
-	int GetOnGrid(int x, int y, int layerNumber);
+	void SetNewOnGrid(int x, int y, int layer_number, int value);
+	const int GetOnGrid(int x, int y, int layer_number) const;
+	const bool IsCellEmpty(const sf::Vector2i& position) const;
+	void SetupBlockmap(Sprite* sprite);
+	void DeleteInBlockMap(Sprite* sprite);
+	const std::set<Sprite*>& GetBlockMap(const sf::Vector2i& position) const;
+	void RotateSprite(const sf::Vector2i& position, float angle);
+	void SetMapSprite(const MapSprite& map_sprite);
+	void DeleteMapSprite(const sf::Vector2i& position);
+	const std::vector<MapSprite>& GetMapSprites() const;
 
-	bool isCellEmpty(const sf::Vector2i& pos);
-	void setupBlockmap(Sprite* sp);
-	void deleteInBlockMap(Sprite* sp);
-	std::set<Sprite*> getBlockMap(const sf::Vector2i& pos);
-
-	void rotateSprite(const sf::Vector2i& pos, float angle);
-
-	void setMapSprite(const MapSprite& sp);
-	void deleteMapSprite(const sf::Vector2i& pos);
-	std::vector<MapSprite>& getMapSprites();
-
-	std::vector<std::vector<std::array<int, LAYER_COUNT>>> grid;
-	std::vector<std::vector<std::set<Sprite*>>> blockMap;
-
+	std::vector<std::vector<std::array<int, kLayerCount>>> grid;
+	std::vector<std::vector<std::set<Sprite*>>> block_map;
 	std::vector<MapSprite> sprites;
 private:
-	bool isValidGridPos(int x, int y);
-	bool isValidBlockmapPos(int x, int y);
-	bool insertInBlockMap(sf::Vector2i pos, Sprite* sprite);
-	void removeInBlockMap(sf::Vector2i pos, Sprite* sprite);
+	const bool IsValidGridPos(int x, int y) const;
+	const bool IsValidBlockmapPos(int x, int y) const;
+	const bool InsertInBlockMap(sf::Vector2i position, Sprite* sprite);
+	void RemoveInBlockMap(sf::Vector2i position, Sprite* sprite);
 };
 
 #endif // !MAP_H

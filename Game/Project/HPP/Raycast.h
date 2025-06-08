@@ -1,21 +1,10 @@
-#pragma once
 #ifndef RAYCAST
 #define RAYCAST
 
-#include "Map.h"
-#include "CONST.h"
+#include "map.h"
+#include "const.h"
 
-struct RayHit
-{
-	int cell;
-	sf::Vector2i mapPos;
-	bool isHitVert;
-	float perpWallDist;
-
-	Sprite* sprite;
-};
-
-RayHit raycast(Map* map, const sf::Vector2f& pos, const sf::Vector2f& dir,
-	bool checkSprite = false, Sprite* ignore = nullptr, int maxDist = 64, float pitch = 0.0f);
+RayHit Raycast(const Map* const map, const sf::Vector2f& position, const sf::Vector2f& direction,
+	bool check_sprite = false, Sprite* ignore = nullptr, int max_dist = 64, float pitch = 0.0f);
 
 #endif // !RAYCAST

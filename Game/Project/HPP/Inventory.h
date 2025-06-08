@@ -1,41 +1,39 @@
-#pragma once
 #ifndef INVENT
 #define INVENT
 
-#include "UIManeger.h"
-#include "ItemManager.h"
-#include "DataBase.h"
-#include "RenderState.h"
+#include "ui_maneger.h"
+#include "item_manager.h"
+#include "data_base.h"
+#include "render_state.h"
 
-class Inventory
-{
+class Inventory {
 public:
-	Inventory(sf::RenderWindow* _window, Player* _player, UIManager* _uiManager);
+	Inventory(sf::RenderWindow* window, Player* const player, UIManager* const ui_manager);
 
-	Item* takeMaxHeal();
-	void takeItem(Itemble*, int cnt = 1);
-	void useItem(Itemble*, int cnt = 1);
-	void useInvent();
-	void update();
-	void drawInvent();
+	Item* const TakeMaxHeal() const;
+	void TakeItem(Itemble* const itemble, int count = 1);
+	void UseItem(Itemble* const itemble, int count = 1);
+	void UseInvent();
+	void Update();
+	void DrawInvent();
 private:
-	void save();
-	void initInv();
-	void checkChose();
-	void selectedItem();
-	void selectItemById();
-	void useSelectedItem(Item* item);
-	void useSelectedGun(Gun* gun);
-	void useSelectedImprove(Improve* improve);
+	void Save() const;
+	void InitInv();
+	void CheckChose();
+	void SelectedItem();
+	void SelectItemById();
+	void UseSelectedItem(Item* const item);
+	void UseSelectedGun(Gun* const gun);
+	void UseSelectedImprove(Improve* const improve);
 
-	bool isOpen;
-	Player* player;
-	int nowKey;
-	RenderState invetState;
-	Itemble* choose;
-	std::map<Itemble*, int> items;
-	UIManager* uiManager;
-	sf::RenderWindow* window;
+	bool is_open_;
+	int now_key_;
+	Player* const player_;
+	RenderState invetory_state_;
+	Itemble* choose_;
+	std::map<Itemble*, int> items_;
+	UIManager* const ui_manager_;
+	sf::RenderWindow* window_;
 };
 
 #endif // !INVENT

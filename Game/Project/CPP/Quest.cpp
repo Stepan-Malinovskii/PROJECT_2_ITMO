@@ -1,81 +1,69 @@
-#include "Quest.h"
-#include "DataBase.h"
+#include "quest.h"
+#include "data_base.h"
 
-Quest::Quest(const QuestData& data) : data{ data } {}
+Quest::Quest(const QuestData& data) : data_{ data } {}
 
-void Quest::updateProgress(int value) { data.progress = std::min(data.progress + value, data.target); }
+void Quest::UpdateProgress(int value) { data_.progress = std::min(data_.progress + value, data_.target); }
 
-bool Quest::isCompleted() { return data.progress >= data.target; }
+const bool Quest::IsCompleted() const { return data_.progress >= data_.target; }
 
-QuestManager::QuestManager()
-{
-    quests = std::vector<Quest*>(3);
-    auto& dataBase = Data::getInstance();
-    auto questData = dataBase.getQuest();
+const QuestData Quest::GetData() const { return data_; }
 
-    for (size_t i = 0; i < questData.size(); i++)
-    {
-        addQuest(questData[i]);
+QuestManager::QuestManager() {
+    quests_ = std::vector<Quest*>(3);
+    auto& data_base = Data::GetInstance();
+    auto quest_data = data_base.GetQuest();
+
+    for (size_t i = 0; i < quest_data.size(); i++) {
+        AddQuest(quest_data[i]);
     }
 }
 
-QuestManager::~QuestManager()
-{
-    std::vector<QuestData> questData;
-    for (auto q : quests)
-    {
-        if (q) { questData.push_back(q->data); }
+QuestManager::~QuestManager() {
+    std::vector<QuestData> quest_data;
+    for (const auto& q : quests_) {
+        if (q) { 
+            quest_data.push_back(q->GetData());
+        }
     }
 
-    auto& dataBase = Data::getInstance();
-    dataBase.saveQuest(questData);
+    auto& data_base = Data::GetInstance();
+    data_base.SaveQuest(quest_data);
 }
 
-void QuestManager::addQuest(const QuestData& data)
-{ 
-    for (size_t i = 0; i < quests.size(); i++)
-    {
-        if (!quests[i])
-        {
-            quests[i] = new Quest(data);
+void QuestManager::AddQuest(const QuestData& data) { 
+    for (size_t i = 0; i < quests_.size(); i++) {
+        if (!quests_[i]) {
+            quests_[i] = new Quest(data);
             break;
         }
     }
 }
 
-void QuestManager::updateQuests(QuestType type, int value)
-{
-    for (auto quest : quests) 
-    {
-        if (quest && quest->data.type == type)
-        {
-            quest->updateProgress(value);
+void QuestManager::UpdateQuests(QuestType type, int value) {
+    for (const auto& quest : quests_)  {
+        if (quest && quest->GetData().type == type) {
+            quest->UpdateProgress(value);
         }
     }
 }
 
-void QuestManager::deleteAllQuest()
-{
-    for (size_t i = 0; i < quests.size(); i++)
-    {
-        if (quests[i])
-        {
-            delete quests[i];
-            quests[i] = nullptr;
+void QuestManager::DeleteAllQuest() {
+    for (size_t i = 0; i < quests_.size(); i++) {
+        if (quests_[i]) {
+            delete quests_[i];
+            quests_[i] = nullptr;
         }
     }
 }
 
-int QuestManager::deleteQuest(Quest* quest) 
-{
+const int QuestManager::DeleteQuest(Quest* quest) {
     int reward = 0;
-    for (size_t i = 0; i < quests.size(); i++)
-    {
-        if (quests[i] == quest)
-        {
-            reward = quest->data.rewardCoins;
+    for (size_t i = 0; i < quests_.size(); i++) {
+        if (quests_[i] == quest) {
+            reward = quest->GetData().reward_coins;
             delete quest;
-            quests[i] = nullptr;
+            quests_[i] = nullptr;
             break;
         }
     }
@@ -83,3 +71,4 @@ int QuestManager::deleteQuest(Quest* quest)
     return reward;
 }
 
+const std::vector<Quest*>& QuestManager::GetQuests() const { return quests_; }

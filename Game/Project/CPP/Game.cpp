@@ -1,221 +1,203 @@
-#include "Game.h"
+#include "game.h"
 
-Game::Game(sf::RenderWindow* _window, MapManager* _mapManager) :
-	window{ _window }, mapManager{ _mapManager }, isKeyPressed{false},
-	screenMidlePos{ (int)(SCREEN_W / 2), (int)(SCREEN_H / 2) }
-{
-	init();
-	subscribeEvent();
-	menu->initStartMenu();
+Game::Game(sf::RenderWindow* window, MapManager* map_manager) :
+	window_{ window }, map_manager_{ map_manager }, is_key_pressed_{false},
+	screen_midle_position_{ (int)(kScreenWight / 2), (int)(kScreenHeight / 2) } {
+	Init();
+	SubscribeEvent();
+	menu_->InitStartMenu();
 }
 
-void Game::init()
-{
-	itemManager = new ItemManager();
-	uiManager = new UIManager(window);
-	dialogSys = new Dialog(window, uiManager, itemManager);
-	spManager = new SpriteManager(mapManager->getNowMap(), uiManager, itemManager);
-	player = spManager->getPlayer();
-	menu = new Menu(window, uiManager, player);
-	invent = new Inventory(window, player, uiManager);
-	renderer = new Renderer(window, player);
-	initPlayer();
+void Game::Init() {
+	item_manager_ = new ItemManager();
+	ui_manager_ = new UIManager(window_);
+	dialog_system_ = new Dialog(window_, ui_manager_, item_manager_);
+	sprite_manager_ = new SpriteManager(map_manager_->GetNowMap(), ui_manager_, item_manager_);
+	player_ = sprite_manager_->GetPlayer();
+	menu_ = new Menu(window_, ui_manager_, player_);
+	inventory_ = new Inventory(window_, player_, ui_manager_);
+	renderer_ = new Renderer(window_, player_);
+	InitPlayer();
 
-	auto& data = Data::getInstance();
-	for (auto b : data.getInvent()) 
-	{ 
-		player->takeItem(itemManager->getItemble(b.first), b.second);
+	for (const auto& b : Data::GetInstance().GetInvent()) {
+		player_->TakeItem(item_manager_->GetItemble(b.first), b.second);
 	}
 
-	auto update = [=](float deltaTime) {
-		getInput(deltaTime);
-		spManager->update(deltaTime);
+	auto update = [=](float delta_time) {
+		GetInput(delta_time);
+		sprite_manager_->Update(delta_time);
 		};
 
 	auto draw = [=]() {
-		renderer->Draw3DView(mapManager->getNowMap(), spManager->getDeteachSprite());
-		uiManager->drawPlayerUI(player);
+		renderer_->Draw3DView(map_manager_->GetNowMap(), sprite_manager_->GetDeteachSprite());
+		ui_manager_->DrawPlayerUI(player_);
 		};
 
-	playState = RenderState(std::move(update), std::move(draw));
-
+	play_state_ = RenderState(std::move(update), std::move(draw));
 }
 
-void Game::subscribeEvent()
-{
-	auto& event = EventSystem::getInstance();
-	event.subscribe<int>("SWAPLOC", [=](const int levelN) {
-		auto& state = GameState::getInstance();
-		state.data.changerCoef = Random::intRandom(2, 5);
-		sf::Vector2f pos = mapManager->nextLocation(levelN);
-		spManager->resetMap(mapManager->getNowMap(), pos);
+void Game::SubscribeEvent() {
+	auto& event = EventSystem::GetInstance();
+	event.Subscribe<int>("SWAPLOC", [=](const int level_number) {
+		auto& state = GameState::GetInstance();
+		state.data.changer_coef = Random::IntRandom(2, 5);
+		sf::Vector2f pos = map_manager_->NextLocation(level_number);
+		sprite_manager_->ResetMap(map_manager_->GetNowMap(), pos);
 		});
 
-	event.subscribe<int>("RESET_GAME", [=](const int NON) {
-		resetGame();
-		auto& state = GameState::getInstance();
-		state.data.isFirstGame = false;
-		currentState = &playState;
+	event.Subscribe<int>("RESET_GAME", [=](const int NON) {
+		ResetGame();
+		auto& state = GameState::GetInstance();
+		state.data.is_first_game = false;
+		current_state_ = &play_state_;
 		});
 
-	event.subscribe<int>("WIN_GAME", [=](const int NON) {
-		resetGame();
-		auto& state = GameState::getInstance();
-		state.data.isFirstGame = true;
-		menu->initStartMenu();
+	event.Subscribe<int>("WIN_GAME", [=](const int NON) {
+		ResetGame();
+		auto& state = GameState::GetInstance();
+		state.data.is_first_game = true;
+		menu_->InitStartMenu();
 		});
 
-	event.subscribe<RenderState*>("SWAP_STATE", [=](RenderState* state) {
-		uiManager->deleteNow();
-		currentState = state ? state : &playState;
+	event.Subscribe<RenderState*>("SWAP_STATE", [=](RenderState* state) {
+		ui_manager_->DeleteNow();
+		current_state_ = state ? state : &play_state_;
 		});
 
-	event.subscribe<int>("PLAYERDEAD", [=](const int NON) {
-		spManager->resetOldPlayer();
-		auto& event = EventSystem::getInstance();
-		event.trigger<int>("SWAPLOC", BASE_N);
-		auto& state = GameState::getInstance();
-		state.data.levelNumber--;
-		menu->initResetMenu();
+	event.Subscribe<int>("PLAYERDEAD", [=](const int NON) {
+		sprite_manager_->ResetOldPlayer();
+
+		auto& event = EventSystem::GetInstance();
+		event.Trigger<int>("SWAPLOC", kBaseNumber);
+
+		auto& state = GameState::GetInstance();
+		state.data.level_number--;
+
+		menu_->InitResetMenu();
 		});
 }
 
-Game::~Game()
-{
-	delete dialogSys;
-	delete spManager;
-	delete itemManager;
-	delete uiManager;
-	delete invent;
-	delete menu;
+Game::~Game() {
+	delete dialog_system_;
+	delete sprite_manager_;
+	delete item_manager_;
+	delete ui_manager_;
+	delete inventory_;
+	delete menu_;
 }
 
-void Game::resetGame()
-{
-	player->guns[1] = nullptr;
-	player->guns[2] = nullptr;
-	invent->takeItem(itemManager->getGunByIndex(2), 1);
-	player->setGun(itemManager->getGunByIndex(2), 1);
-	auto& questM = QuestManager::getInstance();
-	questM.deleteAllQuest();
-	auto& state = GameState::getInstance();
-	state.data.killFirst = false;
-	state.data.killSecond = false;
-	state.data.killTherd = false;
+void Game::ResetGame() const {
+	auto& state = GameState::GetInstance();
+	state.data.kill_first_converter = false;
+	state.data.kill_second_converter = false;
+	state.data.kill_therd_converter = false;
+
+	player_->SetGun(nullptr, 1);
+	player_->SetGun(nullptr, 2);
+
+	inventory_->TakeItem(item_manager_->GetGunByIndex(2), 1);
+	player_->SetGun(item_manager_->GetGunByIndex(2), 1);
+
+	auto& quest_manager = QuestManager::GetInstance();
+	quest_manager.DeleteAllQuest();
 }
 
-void Game::initPlayer()
-{
-	player->setInventory(invent);
-	player->kick = itemManager->getGunByIndex(0);
-	player->setGun(itemManager->getGunByIndex(1), 0);
-	player->nowHeal = invent->takeMaxHeal();
+void Game::InitPlayer() const {
+	player_->SetInventory(inventory_);
+	player_->SetKick(item_manager_->GetGunByIndex(0));
+	player_->SetGun(item_manager_->GetGunByIndex(1), 0);
+	player_->SetNowHeal(inventory_->TakeMaxHeal());
 
-	auto& state = GameState::getInstance();
-	player->mouseSpeed = state.data.mouseSpeed;
+	auto& state = GameState::GetInstance();
+	player_->SetMouseSpeed(state.data.mouse_speed);
 
-	auto& data = Data::getInstance();
-	PlayerDef plDef = data.getPlayerData();
+	auto& data = Data::GetInstance();
+	PlayerDef player_def = data.GetPlayerData();
 
 	int i = 1;
-	for (auto it : plDef.gunsData)
-	{
-		player->setGun(itemManager->getGunById(it), i++);
+	for (const auto& it : player_def.guns_data) {
+		player_->SetGun(item_manager_->GetGunById(it), i++);
 	}
 
-	dialogSys->setPlayer(player);
+	dialog_system_->SetPlayer(player_);
 }
 
-void Game::editor()
-{
-	sf::Vector2f plPos{};
-	spManager->resetMap(mapManager->getNowMap(), plPos);
+void Game::Editor() const {
+	sf::Vector2f player_position{};
+	sprite_manager_->ResetMap(map_manager_->GetNowMap(), player_position);
 }
 
-void Game::save()
-{
-	mapManager->rewriteSprites(spManager->getDeteachSprite());
-	auto& event = EventSystem::getInstance();
-	event.trigger<int>("SAVE", 0);
+void Game::Save() const {
+	map_manager_->RewriteSprites(sprite_manager_->GetDeteachSprite());
+	auto& event = EventSystem::GetInstance();
+	event.Trigger<int>("SAVE", 0);
 }
 
-void Game::getInput(const sf::Event& event, float deltaTime)
-{
-	if (event.type == sf::Event::KeyPressed)
-	{
-		if (event.key.code == sf::Keyboard::Q)
-		{
-			invent->useInvent();
+void Game::GetInput(const sf::Event& event, float delta_time) const {
+	if (event.type == sf::Event::KeyPressed) {
+		if (event.key.code == sf::Keyboard::Q) {
+			inventory_->UseInvent();
 		}
 
-		if (event.key.code == sf::Keyboard::H)
-		{
-			player->heal();
+		if (event.key.code == sf::Keyboard::H) {
+			player_->Heal();
 		}
 #ifdef REDACT_MODE
-		if (event.key.code == sf::Keyboard::P)
-		{
-			auto& event = EventSystem::getInstance();
-			event.trigger<int>("SWAPLOC", BASE_N);
+		if (event.key.code == sf::Keyboard::P) {
+			auto& event = EventSystem::GetInstance();
+			event.Trigger<int>("SWAPLOC", kBaseNumber);
 		}
 #endif // REDACT_MODE
-		if (event.key.code == sf::Keyboard::Escape)
-		{
-			menu->initGameMenu();
+		if (event.key.code == sf::Keyboard::Escape) {
+			menu_->InitGameMenu();
 		}
 	}
 
-	if (event.type == sf::Event::MouseWheelScrolled)
-	{
-		player->swapGun(event.mouseWheelScroll.delta > 0);
+	if (event.type == sf::Event::MouseWheelScrolled) {
+		player_->SwapGun(event.mouseWheelScroll.delta > 0);
 	}
 }
 
-void Game::getInput(float deltaTime)
+void Game::GetInput(float delta_time) const
 {
-	if (!window->hasFocus()) return;
+	if (!window_->hasFocus()) return;
 
-	float radAng = player->enemy->spMap.angle * PI / 180.0f;
-	sf::Vector2f vertParams(cos(radAng), sin(radAng));
-	sf::Vector2f horParams(-vertParams.y, vertParams.x);
-	sf::Vector2f deltaPos(0, 0);
-	bool lShiftPressed = false;
+	float radian_angle = player_->GetEnemy()->GetAngle() * kPI / 180.0f;
+	sf::Vector2f vertical_params(cos(radian_angle), sin(radian_angle));
+	sf::Vector2f horizontal_params(-vertical_params.y, vertical_params.x);
+	sf::Vector2f delta_position(0, 0);
+	bool left_shift_pressed = false;
 
-	if (GetAsyncKeyState('A')) { deltaPos -= horParams; }
-	else if (GetAsyncKeyState('D')) { deltaPos += horParams; }
-	if (GetAsyncKeyState('W')) { deltaPos += vertParams; }
-	else if (GetAsyncKeyState('S')) { deltaPos -= vertParams; }
-	if (GetAsyncKeyState('R')) { player->reloadingGun(); }
-	if (GetAsyncKeyState(VK_LSHIFT)) { lShiftPressed = true; }
-	if (GetAsyncKeyState(VK_SPACE)) { player->jump(); }
-	if (GetAsyncKeyState('F')) { player->fire(); }
-	if (GetAsyncKeyState('E'))
-	{
-		if (Sprite* sp = player->dialog(); sp)
-		{
-			if (auto npc = spManager->getNpc(sp->id); npc)
-			{
-				dialogSys->start(npc);
+	if (GetAsyncKeyState('A')) { delta_position -= horizontal_params; }
+	else if (GetAsyncKeyState('D')) { delta_position += horizontal_params; }
+	if (GetAsyncKeyState('W')) { delta_position += vertical_params; }
+	else if (GetAsyncKeyState('S')) { delta_position -= vertical_params; }
+	if (GetAsyncKeyState('R')) { player_->ReloadingGun(); }
+	if (GetAsyncKeyState(VK_LSHIFT)) { left_shift_pressed = true; }
+	if (GetAsyncKeyState(VK_SPACE)) { player_->Jump(); }
+	if (GetAsyncKeyState('F')) { player_->Fire(); }
+	if (GetAsyncKeyState('E')) {
+		if (const Sprite* const sprite = player_->Dialog(); sprite) {
+			if (auto npc = sprite_manager_->GetNpc(sprite->GetId()); npc) {
+				dialog_system_->Start(npc);
 			}
 		}
 	}
 
-	if (sf::Mouse::isButtonPressed(sf::Mouse::Left))
-	{
-		player->fire(0);
+	if (sf::Mouse::isButtonPressed(sf::Mouse::Left)) {
+		player_->Fire(0);
 	}
 
-	sf::Vector2f mousePos = ((sf::Vector2f)sf::Mouse::getPosition(*window) - (sf::Vector2f)screenMidlePos) / 2.0f;
+	sf::Vector2f mouse_position = ((sf::Vector2f)sf::Mouse::getPosition(*window_) - (sf::Vector2f)screen_midle_position_) / 2.0f;
 	
-	player->checkBoost(lShiftPressed, deltaTime);
-	player->move(deltaPos, deltaTime);
-	player->updateMouseData( mousePos, deltaTime);
-	sf::Mouse::setPosition(screenMidlePos, *window);
+	player_->CheckBoost(left_shift_pressed, delta_time);
+	player_->Move(delta_position, delta_time);
+	player_->UpdateMouseData( mouse_position, delta_time);
+	sf::Mouse::setPosition(screen_midle_position_, *window_);
 }
 
-void Game::makeCycle(float deltaTime)
-{
-	currentState->update(deltaTime);
-	currentState->draw();
-	SoundManager::update();
+void Game::MakeCycle(float delta_time) const {
+	current_state_->Update(delta_time);
+	current_state_->Draw();
+	SoundManager::Update();
 }

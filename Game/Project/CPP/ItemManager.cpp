@@ -1,133 +1,105 @@
-#include "ItemManager.h"
+#include "item_manager.h"
 
-ItemManager::ItemManager()
-{
-	createImprovements();
-	createItems();
-	createGuns();
-	createTraveler();
+ItemManager::ItemManager() {
+	CreateImprovements();
+	CreateItems();
+	CreateGuns();
+	CreateTraveler();
 
-	auto& event = EventSystem::getInstance();
-	event.subscribe<int>("SAVE", [=](const int& NON) {saveGun();});
+	auto& event = EventSystem::GetInstance();
+	event.Subscribe<int>("SAVE", [=](const int& NON) {SaveGun();});
 
-	event.subscribe<int>("RESET_GAME", [=](const int& NON) { resetGuns(); });
+	event.Subscribe<int>("RESET_GAME", [=](const int& NON) { ResetGuns(); });
 
-	event.subscribe<int>("WIN_GAME", [=](const int& NON) { resetGuns(); });
+	event.Subscribe<int>("WIN_GAME", [=](const int& NON) { ResetGuns(); });
 }
 
-void ItemManager::resetGuns()
-{
-	for (int i = 0; i < guns.size(); i++)
-	{
-		guns[i]->deleteImprove(ImproveType::Damage);
-		guns[i]->deleteImprove(ImproveType::Spread);
-		guns[i]->deleteImprove(ImproveType::Magazin);
-		guns[i]->nowCount = gunsDef[i].maxCount;
-		guns[i]->maxCount = gunsDef[i].maxCount;
-		guns[i]->damage = gunsDef[i].damage;
-		guns[i]->maxRad = MAX_RAD;
-		guns[i]->nowRad = MIN_RAD;
-		guns[i]->maxImpRad = MAX_RAD;
-		guns[i]->upgradeCount = 0;
+void ItemManager::ResetGuns() {
+	for (int i = 0; i < guns_.size(); i++) {
+		guns_[i]->ResetGunData();
 	}
 }
 
-void ItemManager::createImprovements()
-{
-	for (int i = 0; i < improveDefs.size(); i++)
-	{
-		improvements.push_back(std::make_unique<Improve>(Improve(improveDefs[i])));
-		itemble[improveDefs[i].id] = improvements.back().get();
+void ItemManager::CreateImprovements() {
+	for (int i = 0; i < improve_defs.size(); i++) {
+		improvements_.push_back(std::make_unique<Improve>(Improve(improve_defs[i])));
+		itemble_[improve_defs[i].id] = improvements_.back().get();
 	}
 }
 
-void  ItemManager::createItems()
-{
-	for (int i = 0; i < itemsDefs.size(); i++)
-	{
-		items.push_back(std::make_unique<Item>(Item(itemsDefs[i])));
-		itemble[itemsDefs[i].id] = items.back().get();
+void  ItemManager::CreateItems() {
+	for (int i = 0; i < items_defs.size(); i++) {
+		items_.push_back(std::make_unique<Item>(Item(items_defs[i])));
+		itemble_[items_defs[i].id] = items_.back().get();
 	}
 }
 
-void ItemManager::createTraveler()
-{
-	for (int i = 0; i < travelerDefs.size(); i++)
-	{
-		items.push_back(std::make_unique<Item>(Item(travelerDefs[i])));
-		itemble[travelerDefs[i].id] = items.back().get();
-		items.back()->id = travelerDefs[0].id;
+void ItemManager::CreateTraveler() {
+	for (int i = 0; i < traveler_defs.size(); i++) {
+		items_.push_back(std::make_unique<Item>(Item(traveler_defs[i])));
+		itemble_[traveler_defs[i].id] = items_.back().get();
 	}
 }
 
-void  ItemManager::createGuns()
-{
-	auto& data = Data::getInstance();
-	auto gunsData = data.getGunData();
+void  ItemManager::CreateGuns() {
+	auto& data = Data::GetInstance();
+	auto guns_data = data.GetGunData();
 
-	for (int i = 0; i < gunsDef.size(); i++)
-	{
-		GunDef def = gunsDef[i];
-		def.nowCount = gunsData[i].nowCount;
-		def.maxCount = gunsData[i].nowMaxCount;
-		def.damage = gunsData[i].nowDamage;
+	for (int i = 0; i < guns_def.size(); i++) {
+		GunDef def = guns_def[i];
+		def.now_count = guns_data[i].now_count;
+		def.max_count = guns_data[i].now_max_ount;
+		def.damage = guns_data[i].now_damage;
 
-		guns.push_back(std::make_unique<Gun>(Gun(def, i > 1, i)));
-		guns.back()->setAnimator(std::move(createAnimator(i)));
-		guns.back()->maxRad = gunsData[i].nowMaxRad;
-		guns.back()->upgradeCount = gunsData[i].upgradeCount;
+		guns_.push_back(std::make_unique<Gun>(Gun(def, i > 1, i)));
+		guns_.back()->SetAnimator(std::move(CreateAnimator(i)));
+		guns_.back()->SetMaxRadius(guns_data[i].now_max_rad);
+		guns_.back()->SetUpgradeCount(guns_data[i].upgrade_count);
 
-		itemble[def.id] = guns.back().get();
+		itemble_[def.id] = guns_.back().get();
 
-		for (auto im : gunsData[i].improveId)
-		{
-			guns.back()->trySetImprove(improvements[im].get());
+		for (const auto& im : guns_data[i].improve_id) {
+			guns_.back()->TrySetImprove(improvements_[im].get());
 		}
 	}
 }
 
-Animator<sf::Texture*> ItemManager::createAnimator(int gunIndex)
-{
-	return Animator<sf::Texture*>(&Resources::gunsBaseText[gunIndex],
-		{ createAnimation(&Resources::gunsFireAnim[gunIndex], gunsDef[gunIndex].shutTime),
-		createAnimation(&Resources::gunsResetAnim[gunIndex], gunsDef[gunIndex].resetTime) });
+const Animator<sf::Texture*> ItemManager::CreateAnimator(int gun_index) const {
+	return Animator<sf::Texture*>(&Resources::guns_base_text[gun_index],
+		{ CreateAnimation(&Resources::guns_fire_anim[gun_index], guns_def[gun_index].shut_time),
+		CreateAnimation(&Resources::guns_reset_anim[gun_index], guns_def[gun_index].reset_time) });
 }
 
-Animation<sf::Texture*> ItemManager::createAnimation(std::vector<sf::Texture>* frames, float duration)
-{
-	Animation<sf::Texture*> anim;
+const Animation<sf::Texture*> ItemManager::CreateAnimation(std::vector<sf::Texture>* frames, float duration) const {
+	Animation<sf::Texture*> animation;
 	int count = (int)frames->size();
 
-	for (int j = 0; j < count; ++j)
-	{
-		anim.setKeyframe((j + 1) / (float)count * duration, &(*frames)[j]);
+	for (int j = 0; j < count; ++j) {
+		animation.SetKeyframe((j + 1) / (float)count * duration, &(*frames)[j]);
 	}
 
-	if (count > 0)
-	{
-		anim.setKeyframe(duration, &(*frames)[count - 1]);
+	if (count > 0) {
+		animation.SetKeyframe(duration, &(*frames)[count - 1]);
 	}
 
-	return anim;
+	return animation;
 }
 
-Gun* ItemManager::getGunByIndex(int index) { return index >= 0 && index < guns.size() ?
-	guns[index].get(): throw "Invalid index"; }
+Gun* const ItemManager::GetGunByIndex(int index) const { return index >= 0 && index < guns_.size() ?
+	guns_[index].get(): throw "INVALID INDEX!"; }
 
-Gun* ItemManager::getGunById(int id) { return dynamic_cast<Gun*>(itemble[id]); }
+Gun* const ItemManager::GetGunById(int id) const { return dynamic_cast<Gun* const>(itemble_.at(id)); }
 
-Itemble* ItemManager::getItemble(int id) { return itemble[id]; }
+Itemble* const ItemManager::GetItemble(int id) const { return itemble_.at(id); }
 
-void ItemManager::saveGun()
-{
+void ItemManager::SaveGun() const {
 	std::vector<GunData> defs;
-	defs.reserve(guns.size());
+	defs.reserve(guns_.size());
 
-	for (const auto& gun : guns)
-	{
-		defs.push_back(gun->getGunData());
+	for (const auto& gun : guns_) {
+		defs.push_back(gun->GetGunData());
 	}
 
-	auto& data = Data::getInstance();
-	data.saveGunData(defs);
+	auto& data = Data::GetInstance();
+	data.SaveGunData(defs);
 }

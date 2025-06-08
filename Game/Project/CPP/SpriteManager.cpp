@@ -1,402 +1,322 @@
-#include "SpriteManager.h"
-#include "SFML/Graphics/ConvexShape.hpp"
+#include "sprite_manager.h"
 
-#define DOT(a,b) (a.x * b.x + a.y * b.y)
+SpriteManager::SpriteManager(Map* const now_map, UIManager* const ui_manager, ItemManager* const item_manager) :
+	now_map_{ now_map }, ui_manager_{ ui_manager }, item_manager_{ item_manager }, id_ {1},
+	all_sprites_{ new std::vector<std::shared_ptr<Sprite>>() } {
+	Init();
 
-SpriteManager::SpriteManager(Map* _nowMap, UIManager* _uiManager, ItemManager* _itemManager) : 
-	nowMap{ _nowMap }, uiManager{ _uiManager }, itemManager{ _itemManager }, id {1}
-{
-	allSprites = new std::vector<std::shared_ptr<Sprite>>();
-	init();
+	auto& event = EventSystem::GetInstance();
+	event.Subscribe<std::pair<int, sf::Vector2i>>("SPAWN_ENEMY", [=](const std::pair<int, sf::Vector2i> pair) { SpawnEnemy(pair); });
 
-	auto& event = EventSystem::getInstance();
-	event.subscribe<std::pair<int, sf::Vector2i>>("SPAWN_ENEMY", [=](const std::pair<int, sf::Vector2i> pair) { spawnEnemy(pair); });
-
-	event.subscribe<sf::Vector2f>("SPAWN_PORTAL", [&](const sf::Vector2f pos) {spawnPortal(pos);});
+	event.Subscribe<sf::Vector2f>("SPAWN_PORTAL", [&](const sf::Vector2f pos) {SpawnPortal(pos);});
 }
 
-void SpriteManager::init()
-{
-	id = 1;
+void SpriteManager::Init() {
+	id_ = 1;
 	int i = 0;
-	while (i < allSprites->size())
-	{
-		if ((*allSprites)[i]->id != 0)
-		{
-			(*allSprites)[i].reset();
-			allSprites->erase(allSprites->begin() + i);
-		}
-		else
-		{
+	while (i < all_sprites_->size()) {
+		if ((*all_sprites_)[i]->GetId() != 0) {
+			(*all_sprites_)[i].reset();
+			all_sprites_->erase(all_sprites_->begin() + i);
+		} else {
 			i++;
 		}
 	}
 
-	enemys.clear();
+	enemys_.clear();
 
-	auto& data = Data::getInstance();
-	PlayerDef plDef = data.getPlayerData();
+	auto& data = Data::GetInstance();
+	PlayerDef player_def = data.GetPlayerData();
 
-	if (!player)
-	{
+	if (!player_) {
 		bool flag = false;
-		for (auto sp : nowMap->getMapSprites())
-		{
-			if (sp.spriteDefId == 0)
-			{
-				auto def = spriteDefs[sp.spriteDefId];
-				createPlayer(sp, def, plDef);
+		for (const auto& map_sprite : now_map_->GetMapSprites()) {
+			if (map_sprite.sprite_def_id == 0) {
+				auto sprite_def = sprite_defs[map_sprite.sprite_def_id];
+				CreatePlayer(map_sprite, sprite_def, player_def);
 				flag = true;
 				break;
 			}
 		}
 
-		if (!flag)
-		{
-			createDefaultPlayer(plDef);
+		if (!flag) {
+			CreateDefaultPlayer(player_def);
 		}
 	}
 
 
-	for (auto sp : nowMap->getMapSprites()) {
-		createSpriteFromMapSprite(sp);
+	for (const auto& map_sprite : now_map_->GetMapSprites()) {
+		CreateSpriteFromMapSprite(map_sprite);
 	}
 }
 
-void SpriteManager::createSpriteFromMapSprite(const MapSprite& mapSprite)
-{
-	auto def = spriteDefs[mapSprite.spriteDefId];
-	if (def.type == SpriteType::Enemy)
-	{
-		createEnemy(mapSprite, def);
-	}
-	else if (def.type == SpriteType::NPC)
-	{
-		createNpc(mapSprite, def);
-	}
-	else if (def.type == SpriteType::Convertor)
-	{
-		createConverter(mapSprite, def);
-	}
-	else if (def.type == SpriteType::Boss)
-	{
-		createBoss(mapSprite, def);
-	}
-	else if (def.type == SpriteType::Decoration)
-	{
-		createDecor(mapSprite, def);
+void SpriteManager::CreateSpriteFromMapSprite(const MapSprite& map_sprite) {
+	auto sprite_def = sprite_defs[map_sprite.sprite_def_id];
+	if (sprite_def.type == SpriteType::Enemy) {
+		CreateEnemy(map_sprite, sprite_def);
+	} else if (sprite_def.type == SpriteType::NPC) {
+		CreateNpc(map_sprite, sprite_def);
+	} else if (sprite_def.type == SpriteType::Convertor) {
+		CreateConverter(map_sprite, sprite_def);
+	} else if (sprite_def.type == SpriteType::Boss) {
+		CreateBoss(map_sprite, sprite_def);
+	} else if (sprite_def.type == SpriteType::Decoration) {
+		CreateDecor(map_sprite, sprite_def);
 	}
 	
-	id++;
+	id_++;
 }
 
-void SpriteManager::createDecor(const MapSprite& mapSprite, const SpriteDef& spDef)
-{
-	allSprites->push_back(std::make_shared<Sprite>(spDef, mapSprite, id));
+void SpriteManager::CreateDecor(const MapSprite& map_sprite, const SpriteDef& sprite_def) {
+	all_sprites_->push_back(std::make_shared<Sprite>(sprite_def, map_sprite, id_));
 }
 
-void SpriteManager::createBoss(const MapSprite& spMap, const SpriteDef& spDef)
-{
-	auto enemy = enemyDefs[spMap.spriteDefId];
-	auto cDef = converterDefs[spDef.texture - ENEMY_MAX_INDEX];
-	auto boss = std::make_shared<Boss>(Boss(spDef, spMap, enemy, cDef, id));
-	if (spMap.nowHealPoint <= 0.0f)
-	{
-		boss->changeState(Dead);
-	}
-	else
-	{
-		boss->changeState(Attack);
-		enemys.push_back(boss.get());
-		nowMap->setupBlockmap(boss.get());
+void SpriteManager::CreateBoss(const MapSprite& map_sprite, const SpriteDef& sprite_def) {
+	auto enemy_def = enemy_defs[map_sprite.sprite_def_id];
+	auto converter_def = converter_defs[sprite_def.texture - kEnemyMaxIndex];
+	auto boss = std::make_shared<Boss>(Boss(sprite_def, map_sprite, enemy_def, converter_def, id_));
+
+	if (map_sprite.now_heal_point <= 0.0f) {
+		boss->ChangeState(EnemyState::Dead);
+	} else {
+		boss->ChangeState(EnemyState::Attack);
+		enemys_.push_back(boss.get());
+		now_map_->SetupBlockmap(boss.get());
 	}
 
-	allSprites->push_back(std::move(boss));
+	all_sprites_->push_back(std::move(boss));
 }
 
-void SpriteManager::createConverter(const MapSprite& mapSprite, const SpriteDef& def)
-{
-	auto cDef = converterDefs[def.texture - ENEMY_MAX_INDEX];
-	auto converter = std::make_shared<Converter>(Converter(def, mapSprite, enemyDefs[mapSprite.spriteDefId], cDef, id));
+void SpriteManager::CreateConverter(const MapSprite& map_sprite, const SpriteDef& sprite_def) {
+	if (map_sprite.now_heal_point <= 0.0f) { return; }
 
-	if (converter->spMap.nowHealPoint <= 0.0f) { return; }
+	auto converter_def = converter_defs[sprite_def.texture - kEnemyMaxIndex];
+	auto converter = std::make_shared<Converter>(Converter(sprite_def, map_sprite, enemy_defs[map_sprite.sprite_def_id], converter_def, id_));
+
+	converter->ChangeState(EnemyState::Attack);
+	enemys_.push_back(converter.get());
+	now_map_->SetupBlockmap(converter.get());
+	all_sprites_->push_back(std::move(converter));
+}
+
+void SpriteManager::CreateEnemy(const MapSprite& map_sprite, const SpriteDef& sprite_def) {
+	auto enemy = std::make_shared<Enemy>(sprite_def, map_sprite, enemy_defs[map_sprite.sprite_def_id], id_);
 	
-	converter->changeState(Attack);
-	enemys.push_back(converter.get());
-	nowMap->setupBlockmap(converter.get());
-	allSprites->push_back(std::move(converter));
-}
-
-void SpriteManager::createEnemy(const MapSprite& mapSprite, const SpriteDef& def)
-{
-	auto enemy = std::make_shared<Enemy>(def, mapSprite, enemyDefs[mapSprite.spriteDefId], id);
-	
-	if (enemy->spMap.nowHealPoint <= 0.0f)
-	{
-		enemy->changeState(Dead);
-	}
-	else
-	{
-		enemy->changeState(Attack);
-		enemys.push_back(enemy.get());
-		nowMap->setupBlockmap(enemy.get());
+	if (enemy->GetHealpoint() <= 0.0f) {
+		enemy->ChangeState(EnemyState::Dead);
+	} else {
+		enemy->ChangeState(EnemyState::Attack);
+		enemys_.push_back(enemy.get());
+		now_map_->SetupBlockmap(enemy.get());
 	}
 
-	allSprites->push_back(std::move(enemy));
+	all_sprites_->push_back(std::move(enemy));
 }
 
-void SpriteManager::createNpc(const MapSprite& mapSprite, const SpriteDef& def)
-{
-	auto npcDef = npcDefs[def.texture - ENEMY_MAX_INDEX - 4];
+void SpriteManager::CreateNpc(const MapSprite& map_sprite, const SpriteDef& sprite_def) {
+	auto npc_def = npc_defs[sprite_def.texture - kEnemyMaxIndex - 4];
 
-	if (npcDef.type == TraderNpcType)
-	{
-		TraderDef tradeDef;
-		for (auto t : traderDefs)
-		{
-			if (t.startKey == npcDef.idKey)
-			{
-				tradeDef = t;
+	if (npc_def.type == NpcType::TraderNpcType) {
+		TraderDef trade_def;
+		for (const auto& t : trader_defs) {
+			if (t.start_key == npc_def.id_key) {
+				trade_def = t;
 				break;
 			}
 		}
 
-		allSprites->push_back(std::make_shared<TradeNpc>(TradeNpc(def, mapSprite, tradeDef, npcDef, itemManager, 
-			uiManager, player.get(), id)));
-	}
-	else if (npcDef.type == Traveler)
-	{
-		allSprites->push_back(std::make_shared<TravelerNpc>(TravelerNpc(def, mapSprite, npcDef, uiManager, itemManager, player.get(), id)));
-	}
-	else if (npcDef.type == ChangerNpcType)
-	{
-		allSprites->push_back(std::make_shared<ChangerNpc>(ChangerNpc(def, mapSprite, npcDef, uiManager, itemManager, player.get(), id)));
-	}
-	else if (npcDef.type == PortalNpcType)
-	{
-		allSprites->push_back(std::make_shared<PortalNpc>(PortalNpc(def, mapSprite, npcDef, uiManager, itemManager, player.get(), id)));
-	}
-	else if (npcDef.type == MechanicNpcType)
-	{
-		allSprites->push_back(std::make_shared<MechanicNpc>(MechanicNpc(def, mapSprite, npcDef, uiManager, itemManager, player.get(), id)));
-	}
-	else if (npcDef.type == QuestNpcType)
-	{
-		allSprites->push_back(std::make_shared<QuestNpc>(QuestNpc(def, mapSprite, npcDef, uiManager, itemManager, player.get(), id)));
-	}
-	else
-	{
-		allSprites->push_back(std::make_shared<Npc>(Npc(def, mapSprite, uiManager, player.get(), npcDef, id)));
+		all_sprites_->push_back(std::make_shared<TradeNpc>(TradeNpc(sprite_def, map_sprite, trade_def, npc_def, item_manager_, 
+			ui_manager_, player_.get(), id_)));
+	} else if (npc_def.type == NpcType::Traveler) {
+		all_sprites_->push_back(std::make_shared<TravelerNpc>(TravelerNpc(sprite_def, map_sprite, npc_def, ui_manager_, item_manager_, player_.get(), id_)));
+	} else if (npc_def.type == NpcType::ChangerNpcType) {
+		all_sprites_->push_back(std::make_shared<ChangerNpc>(ChangerNpc(sprite_def, map_sprite, npc_def, ui_manager_, item_manager_, player_.get(), id_)));
+	} else if (npc_def.type == NpcType::PortalNpcType) {
+		all_sprites_->push_back(std::make_shared<PortalNpc>(PortalNpc(sprite_def, map_sprite, npc_def, ui_manager_, item_manager_, player_.get(), id_)));
+	} else if (npc_def.type == NpcType::MechanicNpcType) {
+		all_sprites_->push_back(std::make_shared<MechanicNpc>(MechanicNpc(sprite_def, map_sprite, npc_def, ui_manager_, item_manager_, player_.get(), id_)));
+	} else if (npc_def.type == NpcType::QuestNpcType) {
+		all_sprites_->push_back(std::make_shared<QuestNpc>(QuestNpc(sprite_def, map_sprite, npc_def, ui_manager_, item_manager_, player_.get(), id_)));
+	} else {
+		all_sprites_->push_back(std::make_shared<Npc>(Npc(sprite_def, map_sprite, ui_manager_, player_.get(), npc_def, id_)));
 	}
 
-	nowMap->setupBlockmap(allSprites->back().get());
+	now_map_->SetupBlockmap(all_sprites_->back().get());
 }
 
-void SpriteManager::createPlayer(const MapSprite& mapSprite, const SpriteDef& def, const PlayerDef& plDef)
-{
-	auto enemy = std::make_shared<Enemy>(def, mapSprite, enemyDefs[mapSprite.spriteDefId], id);
+void SpriteManager::CreatePlayer(const MapSprite& map_sprite, const SpriteDef& sprite_def, const PlayerDef& player_def) {
+	auto enemy = std::make_shared<Enemy>(sprite_def, map_sprite, enemy_defs[map_sprite.sprite_def_id], 0);
 
-	enemy->id = 0;
-	enemy->enemyDef.maxHealpoint = plDef.maxHp;
-	enemy->spMap.nowHealPoint = plDef.nowHp;
-	player = std::make_unique<Player>(enemy.get(), plDef, nowMap);
-	player->patrons = plDef.countpantrons;
-	nowMap->setupBlockmap(enemy.get());
+	enemy->SetMaxHealPoint(player_def.max_healpoint);
+	enemy->SetHealpoint(player_def.now_healpoint);
+	player_ = std::make_unique<Player>(enemy.get(), player_def, now_map_);
+	player_->SetPatrons(player_def.patrons_count);
+	now_map_->SetupBlockmap(enemy.get());
 
-	allSprites->push_back(std::move(enemy));
+	all_sprites_->push_back(std::move(enemy));
 }
 
-void SpriteManager::createDefaultPlayer(const PlayerDef& plDef)
-{
-	auto def = spriteDefs[0];
-	auto enDef = enemyDefs[0];
-	enDef.maxHealpoint = plDef.maxHp;
+void SpriteManager::CreateDefaultPlayer(const PlayerDef& player_def) {
+	auto sprite_def = sprite_defs[0];
+	auto enemy_def = enemy_defs[0];
+	enemy_def.max_healpoint = player_def.max_healpoint;
 
-	MapSprite defaultPlayerSprite{
+	MapSprite default_player_sprite{
 		0,                              
 		{2.0f, 2.0f},                   
 		90.0f,                          
-		plDef.nowHp                     
+		player_def.now_healpoint                     
 	};
 
-	auto enemy = std::make_shared<Enemy>(def, defaultPlayerSprite, enDef, 0);
-	nowMap->setupBlockmap(enemy.get());
+	auto enemy = std::make_shared<Enemy>(sprite_def, default_player_sprite, enemy_def, 0);
+	now_map_->SetupBlockmap(enemy.get());
 
-	player = std::make_unique<Player>(enemy.get(), plDef, nowMap);
-	player->patrons = plDef.countpantrons;
+	player_ = std::make_unique<Player>(enemy.get(), player_def, now_map_);
+	player_->SetPatrons(player_def.patrons_count);
 
-	allSprites->push_back(std::move(enemy));
+	all_sprites_->push_back(std::move(enemy));
 }
 
-void SpriteManager::resetMap(Map* newMap, const sf::Vector2f& pos)
-{
-	nowMap = newMap;
-	init();
+void SpriteManager::ResetMap(Map* const new_map, const sf::Vector2f& position) {
+	now_map_ = new_map;
+	Init();
 
-	if (pos.x != 0.0f && pos.y != 0)
-	{
-		player->enemy->spMap.position = pos;
+	if (position.x != 0.0f && position.y != 0) {
+		player_->GetEnemy()->SetPosition(position);
 	}
-	player->setNemMap(newMap);
+
+	player_->SetNemMap(new_map);
 }
 
-void SpriteManager::resetOldPlayer()
-{
-	auto& data = Data::getInstance();
-	PlayerDef plDef = data.getPlayerData();
+void SpriteManager::ResetOldPlayer() {
+	auto& data = Data::GetInstance();
+	PlayerDef player_def = data.GetPlayerData();
 
-	player->enemy->enemyDef.maxHealpoint = plDef.maxHp;
-	player->enemy->spMap.nowHealPoint = plDef.nowHp;
-	player->maxEnergy = plDef.maxEnergy;
-	player->nowEnergy = plDef.nowEnergy;
-	player->defence = plDef.defence;
-	player->maxStrenght = plDef.maxStrenght;
-	player->nowStrenght = plDef.nowStrenght;
-	player->patrons = plDef.countpantrons;
-	player->money = plDef.money;
-	player->details = plDef.details;
+	player_->ResetPlayer(player_def);
 }
 
-Player* SpriteManager::getPlayer() { return player.get(); }
+Player* const SpriteManager::GetPlayer() const { return player_.get(); }
 
-Npc* SpriteManager::getNpc(int id)
-{
-	auto npc = std::find_if(allSprites->begin(), allSprites->end(), 
-		[id](std::shared_ptr<Sprite> sp) {return sp->id == id;});
-	return npc != allSprites->end() ? dynamic_cast<Npc*>(npc->get()) : nullptr;
+Npc* const SpriteManager::GetNpc(int id) const {
+	auto npc = std::find_if(all_sprites_->begin(), all_sprites_->end(), 
+		[id](std::shared_ptr<Sprite> sp) {return sp->GetId() == id;});
+
+	return npc != all_sprites_->end() ? dynamic_cast<Npc*>(npc->get()) : nullptr;
 }
 
-std::vector<std::shared_ptr<Sprite>>* SpriteManager::getDeteachSprite() { return allSprites;  }
+std::vector<std::shared_ptr<Sprite>>* const SpriteManager::GetDeteachSprite() const { return all_sprites_;  }
 
-void SpriteManager::update(float deltaTime)
-{
-	for (auto enemy : enemys)
-	{
-		enemy->update(deltaTime);
+void SpriteManager::Update(float delta_time) {
+	for (const auto& enemy : enemys_) {
+		enemy->Update(delta_time);
 
-		if (enemy->spMap.nowHealPoint <= 0.0f)
-		{
-			if (enemy->spDef.type == SpriteType::Boss)
-			{
-				enemy->changeState(Dead);
-			}
-			else
-			{
-				killEnemy(enemy);
+		if (enemy->GetHealpoint() <= 0.0f) {
+			if (enemy->GetSpriteType() == SpriteType::Boss) {
+				enemy->ChangeState(EnemyState::Dead);
+			} else {
+				KillEnemy(enemy);
 			}
 		}
 	}
 
-	aiControler(deltaTime);
+	AIControler(delta_time);
 }
 
-void SpriteManager::aiControler(float deltaTime)
-{
-	for (size_t i = 0; i < enemys.size();i++)
-	{
-		float distance = sqrt(GETDIST(enemys[i]->spMap.position, player->enemy->spMap.position));
+void SpriteManager::AIControler(float delta_time) const {
+	for (size_t i = 0; i < enemys_.size();i++) {
+		float distance = sqrt(GETDIST(enemys_[i]->GetPosition(), player_->GetEnemy()->GetPosition()));
 
-		if (enemys[i]->isAtack && enemys[i]->isCanAttack)
-		{
-			enemys[i]->isAtack = false;
-			enemys[i]->isCanAttack = false;
-			if (isEnemyHit(enemys[i], distance)) enemys[i]->attack(player.get());
+		if (enemys_[i]->GetIsAttack() && enemys_[i]->GetIsCanAttack()) {
+			enemys_[i]->SetIsAttcak(false);
+			enemys_[i]->SetIsCanAttcak(false);
+			if (IsEnemyHit(enemys_[i], distance)) enemys_[i]->Attack(player_.get());
 
-			if (player->enemy->spMap.nowHealPoint <= 0.0f)
-			{
-				auto& event = EventSystem::getInstance();
-				event.trigger<int>("PLAYERDEAD", 0);
+			if (player_->GetEnemy()->GetHealpoint() <= 0.0f) {
+				auto& event = EventSystem::GetInstance();
+				event.Trigger<int>("PLAYERDEAD", 0);
 				break;
 			}
 		}
 
-		sf::Vector2f toPlayerDir = player->enemy->spMap.position - enemys[i]->spMap.position;
-		enemys[i]->enemyMechenic(distance, toPlayerDir, nowMap, deltaTime);
+		sf::Vector2f to_player_dir = player_->GetEnemy()->GetPosition() - enemys_[i]->GetPosition();
+		enemys_[i]->EnemyMechenic(distance, to_player_dir, now_map_, delta_time);
 	}
 }
 
-bool isPointInAttackRect(const sf::Vector2f& point, const sf::Vector2f& pos,
-	sf::Vector2f dir, float attackDist)
-{
-	sf::Vector2f rel = point - pos;
+bool isPointInAttackRect(const sf::Vector2f& point, const sf::Vector2f& position,
+	const sf::Vector2f& direction, float attack_dist) {
+	sf::Vector2f rel = point - position;
 
-	float projForward = DOT(rel, dir);
-	float projLeft = DOT(rel, sf::Vector2f(-dir.y, dir.x));
+	float proj_forward = DOT(rel, direction);
+	float proj_left = DOT(rel, sf::Vector2f(-direction.y, direction.x));
 
-	return (projForward >= 0.0f && projForward <= attackDist + 1.0f &&
-		projLeft >= -1.0f / 2.0f && projLeft <= 1.0f / 2.0f);
+	return (proj_forward >= 0.0f && proj_forward <= attack_dist + 1.0f &&
+		proj_left >= -1.0f / 2.0f && proj_left <= 1.0f / 2.0f);
 }
 
-bool SpriteManager::isEnemyHit(Enemy* enemy, float distance)
-{
-	float angle = enemy->spMap.angle * PI / 180.0f;
+bool SpriteManager::IsEnemyHit(Enemy* const enemy, float distance) const {
+	float angle = enemy->GetAngle() * kPI / 180.0f;
 	sf::Vector2f dir{ cos(angle), sin(angle) };
 
-	RayHit hit = raycast(nowMap, enemy->spMap.position, dir, false, enemy, distance);
+	RayHit hit = Raycast(now_map_, enemy->GetPosition(), dir, false, enemy, distance);
 	if (hit.cell != 0) return false;
 
 	return isPointInAttackRect(
-		player->enemy->spMap.position,
-		enemy->spMap.position,
+		player_->GetEnemy()->GetPosition(),
+		enemy->GetPosition(),
 		dir,
-		enemy->enemyDef.attackDist
+		enemy->GetAttackDistance()
 	);
 }
 
-void SpriteManager::spawnEnemy(const std::pair<int, sf::Vector2i>& pair)
-{
-	int x0 = std::max(pair.second.x - SPAWN_RADIUS, 0), x1 = std::min(pair.second.x + SPAWN_RADIUS, (int)nowMap->blockMap[0].size());
-	int y0 = std::max(pair.second.y - SPAWN_RADIUS, 0), y1 = std::min(pair.second.y + SPAWN_RADIUS, (int)nowMap->blockMap.size());
+void SpriteManager::SpawnEnemy(const std::pair<int, sf::Vector2i>& pair) {
+	int x0 = std::max(pair.second.x - kSpawnRadius, 0), x1 = std::min(pair.second.x + kSpawnRadius, (int)now_map_->block_map[0].size());
+	int y0 = std::max(pair.second.y - kSpawnRadius, 0), y1 = std::min(pair.second.y + kSpawnRadius, (int)now_map_->block_map.size());
 
-	std::vector<sf::Vector2i> posVec;
+	std::vector<sf::Vector2i> pos_vec;
 
-	for (int x = x0; x < x1; x++)
-	{
-		for (int y = y0; y < y1; y++)
-		{
-			if (nowMap->blockMap[y][x].size() == 0) { posVec.push_back({ x,y }); }
+	for (int x = x0; x < x1; x++) {
+		for (int y = y0; y < y1; y++) {
+			if (now_map_->block_map[y][x].size() == 0) { 
+				pos_vec.push_back({ x,y });
+			}
 		}
 	}
 
-	auto index = Random::intRandom(0, posVec.size() - 1);
-	auto enemyDef = enemyDefs[pair.first];
-	auto spDef = spriteDefs[pair.first];
-	MapSprite spMap = {spDef.texture + 1, (sf::Vector2f)posVec[index], -90.0f, enemyDef.maxHealpoint};
+	auto index = Random::IntRandom(0, pos_vec.size() - 1);
+	auto enemy_def = enemy_defs[pair.first];
+	auto sprite_def = sprite_defs[pair.first];
+	MapSprite map_sprite = {sprite_def.texture + 1, (sf::Vector2f)pos_vec[index], -90.0f, enemy_def.max_healpoint};
 
-	createEnemy(spMap, spDef);
-	id++;
+	CreateEnemy(map_sprite, sprite_def);
+	id_++;
 }
 
-void SpriteManager::spawnPortal(const sf::Vector2f& pos)
-{
-	auto def = spriteDefs[PORTAL_INDEX];
-	MapSprite spMap{ def.texture + 1, pos, -90.0f, 10 };
-	createNpc(spMap, def);
+void SpriteManager::SpawnPortal(const sf::Vector2f& pos) {
+	auto def = sprite_defs[kPortalIndex];
+	MapSprite map_sprite{ def.texture + 1, pos, -90.0f, 10 };
+	CreateNpc(map_sprite, def);
 }
 
-void SpriteManager::killEnemy(Enemy* enem)
-{
-	enem->changeState(Dead);
+void SpriteManager::KillEnemy(Enemy* const enem) {
+	enem->ChangeState(EnemyState::Dead);
 
-	int details = Random::intRandom((int)(enem->enemyDef.midleDrop * 0.8f), (int)(enem->enemyDef.midleDrop * 1.2f));
-	player->details += details;
-	auto& questM = QuestManager::getInstance();
-	questM.updateQuests(CollectionDetails, details);
-	questM.updateQuests(KillMonster, 1);
+	int details = Random::IntRandom((int)(enem->GetMidleDrop() * 0.8f), (int)(enem->GetMidleDrop() * 1.2f));
+	player_->SetDetails(player_->GetDetails() + details);
+	auto& quest_manager = QuestManager::GetInstance();
+	quest_manager.UpdateQuests(QuestType::CollectionDetails, details);
+	quest_manager.UpdateQuests(QuestType::KillMonster, 1);
 
-	nowMap->deleteInBlockMap(enem);
+	now_map_->DeleteInBlockMap(enem);
 
-	for (int i = 0; i < enemys.size(); i++)
-	{
-		if (enemys[i]->id == enem->id)
-		{
-			enemys.erase(enemys.begin() + i);
+	for (int i = 0; i < enemys_.size(); i++) {
+		if (enemys_[i]->GetId() == enem->GetId()) {
+			enemys_.erase(enemys_.begin() + i);
 			break;
 		}
 	}
 }
 
-SpriteManager::~SpriteManager()
-{
-	delete allSprites;
+SpriteManager::~SpriteManager() {
+	delete all_sprites_;
 }

@@ -1,13 +1,12 @@
-#pragma once
 #ifndef RENDERER
 #define RENDERER
 
-#include "Player.h"
-#include "Map.h"
-#include "Sprite.h"
-#include "Raycast.h"
-#include "CONST.h"
-#include "Resources.h"
+#include "player.h"
+#include "map.h"
+#include "sprite.h"
+#include "raycast.h"
+#include "const.h"
+#include "resources.h"
 #include <SFML/Graphics/RenderTarget.hpp>
 #include <SFML/Graphics/Texture.hpp>
 #include <SFML/Graphics/Sprite.hpp>
@@ -15,48 +14,45 @@
 #include <thread>
 #include <queue>
 
-class ThreadPool
-{
+class ThreadPool {
 public:
-	ThreadPool(int threadCount);
+	ThreadPool(int thread_count);
 	~ThreadPool();
-	void addTask(std::function<void()>&& task);
-	void waitAll();
-	int getThreadCount();
+	void AddTask(std::function<void()>&& task);
+	void WaitAll();
+	int GetThreadCount();
 private:
-	std::vector<std::thread> workers;
-	std::queue<std::function<void()>> tasks;
-	std::mutex queueMutex;
-	std::condition_variable condition;
-	bool stop = false;
-	size_t activeTasks = 0;
-	std::condition_variable completionCondition;
+	std::vector<std::thread> workers_;
+	std::queue<std::function<void()>> tasks_;
+	std::mutex queue_mutex;
+	std::condition_variable condition_;
+	bool stop_;
+	size_t active_tasks_;
+	std::condition_variable completion_condition_;
 };
 
-class Renderer
-{
+class Renderer {
 public:
-	Renderer(sf::RenderWindow* window, Player* player);
+	Renderer(sf::RenderWindow* window, const Player* const player);
 	~Renderer();
 
 	void Init();
 
-	void Draw3DView(Map* map, std::vector<std::shared_ptr<Sprite>>* sprites);
+	void Draw3DView(const Map* const map, std::vector<std::shared_ptr<Sprite>>* const  sprites);
 private:
-	sf::RenderWindow* window;
-	sf::Texture floorTexture;
-	sf::Sprite floorSprite;
-	uint8_t* screenPixels;
-	Player* player;
+	void DrawFloor(const sf::Vector2f& ray_direction_left, const sf::Vector2f& ray_direction_right, 
+		const sf::Vector2f& ray_proisition, const Map* const map, int start_height, int end_height);
+	void DrawSprite(const sf::Vector2f& player_direction, const sf::Vector2f& camera_plane, std::vector<std::shared_ptr<Sprite>>* const sprites);
 
-	sf::VertexArray walls{ sf::Lines };
-	sf::VertexArray spriteColumns{ sf::Lines };
-	float* distanceBuffer;
-
-	ThreadPool threads;
-
-	void DrawFloor(const sf::Vector2f& rayDirLeft, const sf::Vector2f& rayDirRight, const sf::Vector2f& rayPos, Map* map, int startH, int endH);
-	void DrawSprite(const sf::Vector2f& pDirection, const sf::Vector2f& cameraPlane, std::vector<std::shared_ptr<Sprite>>* sprites);
+	sf::RenderWindow* window_;
+	sf::Texture floor_texture_;
+	sf::Sprite floor_sprite_;
+	uint8_t* screen_pixels_;
+	const Player* const player_;
+	sf::VertexArray walls_{ sf::Lines };
+	sf::VertexArray sprite_columns_{ sf::Lines };
+	float* distance_buffer_;
+	ThreadPool threads_;
 };
 
 #endif // !RENDERER

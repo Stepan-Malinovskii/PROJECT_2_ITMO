@@ -1,952 +1,799 @@
-#include "Sprite.h"
-#include "UIManeger.h"
-#include "ItemManager.h"
-#include "Map.h"
-#include "Weapon.h"
-#include "Player.h"
+#include "sprite.h"
+#include "ui_maneger.h"
+#include "item_manager.h"
+#include "map.h"
+#include "weapon.h"
+#include "player.h"
 
-Sprite::Sprite(const SpriteDef& _spDef, const MapSprite& _spMap, int _id) :
-	spDef{ _spDef }, spMap{ _spMap }, id{ _id }, textSize{ 0 }, texture{ nullptr }
-{
-	if (spDef.type == SpriteType::Decoration)
-	{
-		texture = &Resources::spritesTextures[spDef.texture];
-		textSize = texture->getSize().y;
-	}
-	else if (spDef.texture != -1)
-	{
-		texture = &Resources::spritesTextures[spDef.texture];
-		textSize = texture->getSize().x / 8;
+Sprite::Sprite(const SpriteDef& sprite_def, const MapSprite& map_sprite, int id) :
+	sprite_def_{ sprite_def }, map_sprite_{ map_sprite }, id_{ id }, texture_size_{ 0 }, texture_{ nullptr } {
+	if (sprite_def.type == SpriteType::Decoration) {
+		texture_ = &Resources::sprites_textures[sprite_def.texture];
+		texture_size_ = texture_->getSize().y;
+	} else if (sprite_def.texture != -1) {
+		texture_ = &Resources::sprites_textures[sprite_def.texture];
+		texture_size_ = texture_->getSize().x / 8;
 	}
 }
 
-std::pair<int, bool> Sprite::getTextIndex() { return { 0, false }; }
+const std::pair<int, bool> Sprite::GetTextIndex() const { return { 0, false }; }
 
-Enemy::Enemy(const SpriteDef& spDef, const MapSprite& spMap, const EnemyDef& _enemyDef, int id) :
-	Sprite(spDef, spMap, id), enemyDef{ _enemyDef }, state{ Stay }, timeAtecked{ 0.5f }, isDamaged{ false }, nowTimeAtack{ 0 }
-{
-	float frameTime = 1.0f / enemyDef.speed;
+void Sprite::SetPosition(const sf::Vector2f& new_position) { map_sprite_.position = new_position; }
+
+const sf::Vector2f& Sprite::GetPosition() const { return map_sprite_.position; }
+
+const float Sprite::GetTextureSize() const { return texture_size_; }
+
+void Sprite::SetAngle(float new_angle) { map_sprite_.angle = new_angle; }
+
+const float Sprite::GetAngle() const { return map_sprite_.angle; }
+
+const float Sprite::GetSize() const { return sprite_def_.size; }
+
+const int Sprite::GetId() const { return id_; }
+
+void Enemy::SetHealpoint(float now_healpoint) { 
+	map_sprite_.now_heal_point = now_healpoint;
+	map_sprite_.now_heal_point = std::min(enemy_def_.max_healpoint, map_sprite_.now_heal_point);
+}
+
+const float Enemy::GetHealpoint() const { return map_sprite_.now_heal_point; }
+
+void Enemy::SetMaxHealPoint(float new_healpoint) {
+	enemy_def_.max_healpoint = new_healpoint;
+	map_sprite_.now_heal_point = std::min(enemy_def_.max_healpoint, map_sprite_.now_heal_point);
+}
+
+const float Enemy::GetMaxHealpoint() const { return enemy_def_.max_healpoint; }
+
+const float Enemy::GetMoveSpeed() const { return enemy_def_.speed; }
+
+const float Enemy::GetAttackDistance() const { return enemy_def_.attack_dist; }
+
+const int Enemy::GetMidleDrop() const { return enemy_def_.midle_drop; }
+
+void Enemy::SetIsCanAttcak(bool value) { is_can_attack_ = value; }
+
+const bool Enemy::GetIsCanAttack() const { return is_can_attack_; }
+
+const bool Enemy::GetIsAttack() const { return is_attack_; }
+
+void Enemy::SetIsAttcak(bool value) { is_attack_ = value; }
+
+const SpriteType& Sprite::GetSpriteType() const { return sprite_def_.type; }
+
+const MapSprite& Sprite::GetMapSprite() const { return map_sprite_; }
+
+const sf::Texture* const Sprite::GetTexture() const { return texture_; }
+
+const int Sprite::GetTextureId() const { return sprite_def_.texture; }
+
+void Sprite::SetTextureSize(int new_size) { texture_size_ = new_size; }
+
+const bool Sprite::IsDirectional() const { return sprite_def_.is_directional; }
+
+void Sprite::SetBlockmapCoords(std::set<std::tuple<int, int>> coords) { blockmap_coords_ = coords; }
+
+const std::set<std::tuple<int, int>>& Sprite::GetBlockmapCoords() const { return blockmap_coords_; }
+
+Enemy::Enemy(const SpriteDef& sprite_def, const MapSprite& map_sprite, const EnemyDef& enemy_def, int id) :
+	Sprite(sprite_def, map_sprite, id), enemy_def_{ enemy_def }, state_{ EnemyState::Stay }, time_atecked_{ 0.5f }, 
+	is_damaged_{ false }, now_time_attack_{ 0 }, is_can_attack_{false}, is_attack_{false} {
+	float frame_time = 1.0f / enemy_def.speed;
 	auto stay = Animation<int>({ {0,0} });
 
 	int index = 1;
 	Animation<int> run;
-	if (enemyDef.isCanRun)
-	{
+	if (enemy_def.is_can_run) {
 		run = Animation<int>({
-		{ frameTime * 0, index++ },
-		{ frameTime * 1, index++ },
-		{ frameTime * 2, index++ },
-		{ frameTime * 3, index },
-		{ frameTime * 4, index++ } });
-	}
-	else
-	{
+		{ frame_time * 0, index++ },
+		{ frame_time * 1, index++ },
+		{ frame_time * 2, index++ },
+		{ frame_time * 3, index },
+		{ frame_time * 4, index++ } });
+	} else {
 		run = stay;
 	}
 
-	frameTime = 1.0f / 3;
+	frame_time = 1.0f / 3;
 
 	auto atack = Animation<int>({
-	{ frameTime * 0, index++ },
-	{ frameTime * 1, index++ },
-	{ frameTime * 2, index },
-	{ frameTime * 3, index++ } });
+	{ frame_time * 0, index++ },
+	{ frame_time * 1, index++ },
+	{ frame_time * 2, index },
+	{ frame_time * 3, index++ } });
 
 	auto dead = Animation<int>({ {0, index} });
 
-	animr = Animator<int>(0, { stay, run, atack, dead });
+	animr_ = Animator<int>(0, { stay, run, atack, dead });
 }
 
-std::pair<int, bool> Enemy::getTextIndex() { return { animr.get(), isDamaged }; }
+const std::pair<int, bool> Enemy::GetTextIndex() const { return { animr_.Get(), is_damaged_ }; }
 
-void Enemy::death()
-{
-	animr.setAnimation(3);
-	isDamaged = false;
+void Enemy::Death() {
+	animr_.SetAnimation(3);
+	is_damaged_ = false;
 }
 
-void Enemy::attack(Player* player)
-{
-	player->takeDamage(enemyDef.damage);
+void Enemy::Attack(Player* const player) {
+	player->TakeDamage(enemy_def_.damage);
 }
 
-void Enemy::move(Map* map, const sf::Vector2f& move)
-{
+void Enemy::Move(Map* const map, const sf::Vector2f& move) {
 	if (move == sf::Vector2f()) return;
 
-	float xOffset = move.x > 0 ? spDef.size / 2.0f : -spDef.size / 2.0f;
-	float yOffset = move.y > 0 ? spDef.size / 2.0f : -spDef.size / 2.0f;
-	sf::Vector2f deltaX = { spMap.position.x + move.x + xOffset, spMap.position.y };
-	sf::Vector2f deltaY = { spMap.position.x, spMap.position.y + move.y + yOffset };
-	if (!checkCollision(map, deltaX, true))
-	{
-		spMap.position.x += move.x;
+	float x_offset = move.x > 0 ? sprite_def_.size / 2.0f : -sprite_def_.size / 2.0f;
+	float y_offset = move.y > 0 ? sprite_def_.size / 2.0f : -sprite_def_.size / 2.0f;
+	sf::Vector2f delta_x = { map_sprite_.position.x + move.x + x_offset, map_sprite_.position.y };
+	sf::Vector2f delta_y = { map_sprite_.position.x, map_sprite_.position.y + move.y + y_offset };
+
+	if (!CheckCollision(map, delta_x, true)) {
+		map_sprite_.position.x += move.x;
 	}
-	if (!checkCollision(map, deltaY, false))
-	{
-		spMap.position.y += move.y;
+	if (!CheckCollision(map, delta_y, false)) {
+		map_sprite_.position.y += move.y;
 	}
 
-	map->setupBlockmap(this);
+	map->SetupBlockmap(this);
 }
 
-void Enemy::update(float deltaTime)
-{
-	if (state == Dead) return;
+void Enemy::Update(float delta_time) {
+	if (state_ == EnemyState::Dead) return;
 
-	animr.update(deltaTime);
+	animr_.Update(delta_time);
 
-	updateTimeSinceLastAttack(deltaTime);
-	updateTimeSinceDamaged(deltaTime);
+	UpdateTimeSinceLastAttack(delta_time);
+	UpdateTimeSinceDamaged(delta_time);
 }
 
-void Enemy::updateTimeSinceLastAttack(float deltaTime)
-{
-	if (nowTimeAtack >= enemyDef.timeBettwenAtack)
-	{
-		isCanAttack = true;
-	}
-	else
-	{
-		nowTimeAtack += deltaTime;
+void Enemy::UpdateTimeSinceLastAttack(float delta_time) {
+	if (now_time_attack_ >= enemy_def_.time_bettwen_attack) {
+		is_can_attack_ = true;
+	} else {
+		now_time_attack_ += delta_time;
 	}
 }
 
-void Enemy::updateTimeSinceDamaged(float deltaTime)
-{
-	if (timeAtecked < 0.5f)
-	{
-		timeAtecked += deltaTime;
-	}
-	else
-	{
-		isDamaged = false;
+void Enemy::UpdateTimeSinceDamaged(float delta_time) {
+	if (time_atecked_ < 0.5f) {
+		time_atecked_ += delta_time;
+	} else {
+		is_damaged_ = false;
 	}
 }
 
-bool Enemy::canChangeState()
-{
-	return animr.get() == 0 || animr.isLopping == true;
+const bool Enemy::CanChangeState() const {
+	return animr_.Get() == 0 || animr_.is_lopping == true;
 }
 
-void Enemy::changeState(EnemyState newState)
-{
-	if (state == Dead) return;
+void Enemy::ChangeState(EnemyState new_state) {
+	if (state_ == EnemyState::Dead) return;
 
-	if (newState == Stay)
-	{
-		animr.setAnimation(0);
-	}
-	else if (newState == Run)
-	{
-		if (state != Run)
-		{
-			animr.setAnimation(1, true);
+	if (new_state == EnemyState::Stay) {
+		animr_.SetAnimation(0);
+	} else if (new_state == EnemyState::Run) {
+		if (state_ != EnemyState::Run) {
+			animr_.SetAnimation(1, true);
 		}
-	}
-	else if (newState == Attack)
-	{
-		isAtack = true;
-		isCanAttack = false;
-		animr.setAnimation(2);
-		nowTimeAtack = 0.0f;
-	}
-	else if (newState == Dead)
-	{
-		death();
+	} else if (new_state == EnemyState::Attack) {
+		is_attack_ = true;
+		is_can_attack_ = false;
+		animr_.SetAnimation(2);
+		now_time_attack_ = 0.0f;
+	} else if (new_state == EnemyState::Dead) {
+		Death();
 	}
 
-	state = newState;
+	state_ = new_state;
 }
 
-void Enemy::takeDamage(float damage)
-{
-	if (state == Dead) return;
+void Enemy::TakeDamage(float damage) {
+	if (state_ == EnemyState::Dead) return;
 
-	spMap.nowHealPoint -= damage;
-	SoundManager::playSound(Resources::takeDamage);
+	map_sprite_.now_heal_point -= damage;
+	SoundManager::PlaySounds(Resources::take_damage);
 
-	isDamaged = true;
-	timeAtecked = 0;
+	is_damaged_ = true;
+	time_atecked_ = 0;
 }
 
-EnemyState Enemy::determineNewState(float dist)
-{
-	if (dist < enemyDef.attackDist)
-	{
-		return Attack;
-	}
-	else if (dist < TRIGER_DIST)
-	{
-		return Run;
-	}
-	else
-	{
-		return Stay;
+const EnemyState Enemy::DetermineNewState(float dist) const {
+	if (dist < enemy_def_.attack_dist) {
+		return EnemyState::Attack;
+	} else if (dist < kTrigerDist) {
+		return EnemyState::Run;
+	} else {
+		return EnemyState::Stay;
 	}
 }
 
-void Enemy::enemyMechenic(float dist, const sf::Vector2f& toPlayerDir, Map* nowMap, float deltaTime)
-{
-	if (isAtack) { return; }
-	auto newState = determineNewState(dist);
+void Enemy::EnemyMechenic(float dist, const sf::Vector2f& to_player_dir, Map* const now_map, float delta_time) {
+	if (is_attack_) { return; }
+	auto new_state = DetermineNewState(dist);
 
-	float angle = spMap.angle * PI / 180.0f;
-	sf::Vector2f dir{ cos(angle), sin(angle) };
+	float angle = map_sprite_.angle * kPI / 180.0f;
+	sf::Vector2f direction{ cos(angle), sin(angle) };
 
-	if (newState == Run)
-	{
-		if (Random::bitRandom() > 0.7f) spMap.angle = std::atan2(toPlayerDir.y, toPlayerDir.x) * 180.0f / PI;
-		sf::Vector2f deltaMove = enemyDef.speed * deltaTime * dir;
-		move(nowMap, deltaMove);
+	if (new_state == EnemyState::Run) {
+		if (Random::BitRandom() > 0.7f) map_sprite_.angle = std::atan2(to_player_dir.y, to_player_dir.x) * 180.0f / kPI;
+		sf::Vector2f delta_move = enemy_def_.speed * delta_time * direction;
+		Move(now_map, delta_move);
 
-		changeState(newState);
-	}
-	else if (newState == Attack)
-	{
-		if (!canChangeState()) return;
+		ChangeState(new_state);
+	} else if (new_state == EnemyState::Attack) {
+		if (!CanChangeState()) return;
 
-		if (isCanAttack)
-		{
-			changeState(newState);
+		if (is_can_attack_) {
+			ChangeState(new_state);
+		} else {
+			if (Random::BitRandom() > 0.3f) map_sprite_.angle = std::atan2(to_player_dir.y, to_player_dir.x) * 180.0f / kPI;
 		}
-		else
-		{
-			if (Random::bitRandom() > 0.3f) spMap.angle = std::atan2(toPlayerDir.y, toPlayerDir.x) * 180.0f / PI;
-		}
-	}
-	else if (newState == Stay)
-	{
-		changeState(newState);
+	} else if (new_state == EnemyState::Stay) {
+		ChangeState(new_state);
 	}
 }
 
-bool Enemy::checkCollision(Map* map, const sf::Vector2f& newPos, bool xAxis)
-{
-	sf::Vector2f thisSize{ spDef.size / 2.0f, spDef.size / 2.0f };
-	sf::Vector2f thisStart = newPos - thisSize;
-	sf::Vector2f thisEnd = newPos + thisSize;
-	sf::Vector2i pos(newPos);
+const bool Enemy::CheckCollision(Map* const map, const sf::Vector2f& new_position, bool x_axis) const {
+	sf::Vector2f this_size{ sprite_def_.size / 2.0f, sprite_def_.size / 2.0f };
+	sf::Vector2f this_start = new_position - this_size;
+	sf::Vector2f this_end = new_position + this_size;
 
-	if (xAxis) {
-		if (map->GetOnGrid((int)newPos.x, (int)newPos.y, WALL_LAYER)) { return true; }
+	if (map->GetOnGrid((int)new_position.x, (int)new_position.y, kWallLayer)) { return true; }
 
-		auto curSp = map->getBlockMap(pos);
-		for (auto sp : curSp) 
-		{
-			if (sp->spDef.size == 0.f || sp == this) continue;
+	for (const auto& sp : map->GetBlockMap((sf::Vector2i)new_position)) {
+		if (sp->GetSize() == 0.f || sp == this) continue;
 
-			sf::Vector2f spriteSize = { sp->spDef.size / 2.f, sp->spDef.size / 2.f };
-			sf::Vector2f spriteStart = sp->spMap.position - spriteSize;
-			sf::Vector2f spriteEnd = sp->spMap.position + spriteSize;
+		sf::Vector2f sprite_size = { sp->GetSize() / 2.f, sp->GetSize() / 2.f };
+		sf::Vector2f sprite_start = sp->GetPosition() - sprite_size;
+		sf::Vector2f sprite_end = sp->GetPosition() + sprite_size;
 
-			float px = newPos.x;
-			float py0 = thisStart.y, py1 = thisEnd.y, magnitude = py1 - py0;
-			float t1 = (spriteStart.y - py0) / magnitude;
-			float t2 = (spriteEnd.y - py0) / magnitude;
+		if (x_axis) {
+			float px = new_position.x;
+			float py0 = this_start.y, py1 = this_end.y, magnitude = py1 - py0;
+			float t1 = (sprite_start.y - py0) / magnitude;
+			float t2 = (sprite_end.y - py0) / magnitude;
 
 			float entry = std::fmin(t1, t2);
 			float exit = std::fmax(t1, t2);
 
-			bool yIntersect = exit > entry && exit > 0.f && entry < 1.f;
-			if (px >= spriteStart.x && px <= spriteEnd.x && yIntersect) { return true; }
-		}
-	}
-	else {
-		if (map->GetOnGrid((int)newPos.x, (int)newPos.y, WALL_LAYER)) { return true; }
-
-		auto curSp = map->getBlockMap(pos);
-		for (auto sp : curSp) 
-		{
-			if (sp->spDef.size == 0.f || sp == this) continue;
-
-			sf::Vector2f halfSize = { sp->spDef.size / 2.f, sp->spDef.size / 2.f };
-			sf::Vector2f thingStart = sp->spMap.position - halfSize;
-			sf::Vector2f thingEnd = sp->spMap.position + halfSize;
-
-			float py = newPos.y;
-			float px0 = thisStart.x, px1 = thisEnd.x, magnitude = px1 - px0;
-			float t1 = (thingStart.x - px0) / magnitude;
-			float t2 = (thingEnd.x - px0) / magnitude;
+			bool y_intersect = exit > entry && exit > 0.f && entry < 1.f;
+			if (px >= sprite_start.x && px <= sprite_end.x && y_intersect) { return true; }
+		} else {
+			float py = new_position.y;
+			float px0 = this_start.x, px1 = this_end.x, magnitude = px1 - px0;
+			float t1 = (sprite_start.x - px0) / magnitude;
+			float t2 = (sprite_end.x - px0) / magnitude;
 
 			float entry = std::fmin(t1, t2);
 			float exit = std::fmax(t1, t2);
 
 			bool xIntersect = exit > entry && exit > 0.f && entry < 1.f;
-			if (py >= thingStart.y && py <= thingEnd.y && xIntersect) { return true; }
+			if (py >= sprite_start.y && py <= sprite_end.y && xIntersect) { return true; }
 		}
-
 	}
 
 	return false;
 }
 
-Converter::Converter(const SpriteDef& spDef, const MapSprite& spMap, const EnemyDef& enemyDef, const ConverterDef& cDef, int id) :
-	Enemy(spDef, spMap, enemyDef, id), cDef{ cDef }
-{
-	nowSpawnCount = (int)(cDef.maxSpawnCount * spMap.nowHealPoint / enemyDef.maxHealpoint);
-	textSize = texture->getSize().y / 2;
+Converter::Converter(const SpriteDef& sprite_def, const MapSprite& map_sprite, const EnemyDef& enemy_def, const ConverterDef& _converter_def, int id) :
+	Enemy(sprite_def, map_sprite, enemy_def, id), converter_def_{ _converter_def } {
+	now_spawn_count_ = (int)(converter_def_.max_spawn_count * map_sprite.now_heal_point / enemy_def.max_healpoint);
+	texture_size_ = texture_->getSize().y / 2;
 	Animation<int> stay({ {0.0f, 0} });
-	Animation<int> attack({ {0.0f, 0}, {enemyDef.timeBettwenAtack, 0 }, {enemyDef.timeBettwenAtack, 0 } });
+	Animation<int> attack({ {0.0f, 0}, {enemy_def.time_bettwen_attack, 0 }, {enemy_def.time_bettwen_attack, 0 } });
 	Animation<int> death({ {0.0f, 1} });
-	animr = Animator<int>(0, { stay, {}, attack, death });
+	animr_ = Animator<int>(0, { stay, {}, attack, death });
 }
 
-void Converter::takeDamage(float damege)
-{
-	if (nowSpawnCount != 0) return;
+void Converter::TakeDamage(float damege) {
+	if (now_spawn_count_ != 0) return;
 
-	Enemy::takeDamage(damege);
+	Enemy::TakeDamage(damege);
 }
 
-void Converter::death()
-{
-	auto& state = GameState::getInstance();
-	if (spDef.texture == 13)
-	{
-		state.data.killFirst = true;
-	}
-	else if (spDef.texture == 14)
-	{
-		state.data.killSecond = true;
-	}
-	else if (spDef.texture == 15)
-	{
-		state.data.killTherd = true;
+void Converter::Death() {
+	auto& state = GameState::GetInstance();
+	if (sprite_def_.texture == 13) {
+		state.data.kill_first_converter = true;
+	} else if (sprite_def_.texture == 14) {
+		state.data.kill_second_converter = true;
+	} else if (sprite_def_.texture == 15) {
+		state.data.kill_therd_converter = true;
 	}
 
-	isDamaged = false;
-	animr.setAnimation(3);
-	auto& event = EventSystem::getInstance();
-	event.trigger<sf::Vector2f>("SPAWN_PORTAL", spMap.position);
+	is_damaged_ = false;
+	animr_.SetAnimation(3);
+	auto& event = EventSystem::GetInstance();
+	event.Trigger<sf::Vector2f>("SPAWN_PORTAL", map_sprite_.position);
 }
 
-void Converter::attack(Player* plaer)
-{
-	if (nowSpawnCount == 0) { return; }
+void Converter::Attack(Player* const plaer) {
+	if (now_spawn_count_ == 0) { return; }
+	now_spawn_count_--;
 
-	nowSpawnCount--;
-	auto& event = EventSystem::getInstance();
-	event.trigger<std::pair<int, sf::Vector2i>>("SPAWN_ENEMY", { cDef.callingIndex[Random::intRandom(0, cDef.callingIndex.size() - 1)], (sf::Vector2i)spMap.position });
+	auto& event = EventSystem::GetInstance();
+	event.Trigger<std::pair<int, sf::Vector2i>>("SPAWN_ENEMY", { converter_def_.calling_index[Random::IntRandom(0, converter_def_.calling_index.size() - 1)], (sf::Vector2i)map_sprite_.position });
 }
 
-void Converter::changeState(EnemyState newState)
-{
-	if (state == Dead) return;
+void Converter::ChangeState(EnemyState new_state) {
+	if (state_ == EnemyState::Dead) return;
 
-	if (newState == Spawn)
-	{
-		isAtack = true;
-		isCanAttack = false;
-		animr.setAnimation(2);
-		nowTimeAtack = 0.0f;
-	}
-	else if (newState == Dead)
-	{
-		death();
+	if (new_state == EnemyState::Spawn) {
+		is_attack_ = true;
+		is_can_attack_ = false;
+		animr_.SetAnimation(2);
+		now_time_attack_ = 0.0f;
+	} else if (new_state == EnemyState::Dead) {
+		Death();
 	}
 
-	state = newState;
+	state_ = new_state;
 }
 
-void Converter::enemyMechenic(float dist, const sf::Vector2f& toPlayerDir, Map* nowMap, float deltaTime)
-{
-	auto newState = determineNewState(dist);
+void Converter::EnemyMechenic(float dist, const sf::Vector2f& to_player_dir, Map* const now_map, float delta_time) {
+	auto new_state = DetermineNewState(dist);
 
-	float angle = spMap.angle * PI / 180.0f;
-	sf::Vector2f dir{ cos(angle), sin(angle) };
+	float angle = map_sprite_.angle * kPI / 180.0f;
+	sf::Vector2f direction{ cos(angle), sin(angle) };
 
-	if (newState == Run && !isAtack)
-	{
-		if (Random::bitRandom() > 0.7f) spMap.angle = std::atan2(toPlayerDir.y, toPlayerDir.x) * 180.0f / PI;
-		sf::Vector2f deltaMove = enemyDef.speed * deltaTime * dir;
-		move(nowMap, deltaMove);
+	if (new_state == EnemyState::Run && !is_attack_) {
+		if (Random::BitRandom() > 0.7f) map_sprite_.angle = std::atan2(to_player_dir.y, to_player_dir.x) * 180.0f / kPI;
+		sf::Vector2f delta_move = enemy_def_.speed * delta_time * direction;
+		Move(now_map, delta_move);
 
-		changeState(newState);
-	}
-	else if (newState == Spawn)
-	{
-		if (!canChangeState()) return;
+		ChangeState(new_state);
+	} else if (new_state == EnemyState::Spawn) {
+		if (!CanChangeState()) return;
 
-		if (isCanAttack)
-		{
-			changeState(newState);
-		}
-		else
-		{
-			if (Random::bitRandom() > 0.3f) spMap.angle = std::atan2(toPlayerDir.y, toPlayerDir.x) * 180.0f / PI;
+		if (is_can_attack_) {
+			ChangeState(new_state);
+		} else {
+			if (Random::BitRandom() > 0.3f) map_sprite_.angle = std::atan2(to_player_dir.y, to_player_dir.x) * 180.0f / kPI;
 		}
 	}
-	else if (newState == Stay)
-	{
-		changeState(newState);
+	else if (new_state == EnemyState::Stay) {
+		ChangeState(new_state);
 	}
 }
 
-EnemyState Converter::determineNewState(float dist)
-{
-	if (dist < SPAWN_RADIUS)
-	{
-		return Spawn;
-	}
-	else if (dist < TRIGER_DIST)
-	{
-		return Run;
-	}
-	else
-	{
-		return Stay;
+const EnemyState Converter::DetermineNewState(float dist) const {
+	if (dist < kSpawnRadius) {
+		return EnemyState::Spawn;
+	} else if (dist < kTrigerDist) {
+		return EnemyState::Run;
+	} else {
+		return EnemyState::Stay;
 	}
 }
 
-bool Converter::canChangeState()
-{
-	return !isAtack || nowSpawnCount > 0;
+const bool Converter::CanChangeState() const {
+	return !is_attack_ || now_spawn_count_ > 0;
 }
 
-Boss::Boss(const SpriteDef& spDef, const MapSprite& spMap, const EnemyDef& enemyDef, const ConverterDef& cDef, int id) :
-	Enemy(spDef, spMap, enemyDef, id), cDef{ cDef }
-{
-	nowSpawnCount = (int)(cDef.maxSpawnCount * spMap.nowHealPoint / enemyDef.maxHealpoint);
+Boss::Boss(const SpriteDef& sprite_def, const MapSprite& map_sprite, const EnemyDef& enemy_def, const ConverterDef& _converter_def, int id) :
+	Enemy(sprite_def, map_sprite, enemy_def, id), converter_def_{ _converter_def } {
+	now_spawn_count_ = (int)(converter_def_.max_spawn_count * map_sprite.now_heal_point / enemy_def.max_healpoint);
 }
 
-void Boss::death()
-{
-	isDamaged = false;
-	animr.setAnimation(3);
-	auto& event = EventSystem::getInstance();
-	event.trigger<sf::Vector2f>("WIN_GAME", spMap.position);
+void Boss::Death() {
+	is_damaged_ = false;
+	animr_.SetAnimation(3);
+	auto& event = EventSystem::GetInstance();
+	event.Trigger<sf::Vector2f>("WIN_GAME", map_sprite_.position);
 }
 
-void Boss::attack(Player* player)
-{
-	if (state == Attack)
-	{
-		Enemy::attack(player);
-	}
-	else if (state == Spawn)
-	{
-		if (nowSpawnCount == 0) return;
+void Boss::Attack(Player* const player) {
+	if (state_ == EnemyState::Attack) {
+		Enemy::Attack(player);
+	} else if (state_ == EnemyState::Spawn) {
+		if (now_spawn_count_ == 0) return;
 
-		nowSpawnCount--;
-		auto& event = EventSystem::getInstance();
-		event.trigger<std::pair<int, sf::Vector2i>>("SPAWN_ENEMY", { cDef.callingIndex[Random::intRandom(0, cDef.callingIndex.size() - 1)], (sf::Vector2i)spMap.position });
+		now_spawn_count_--;
+
+		auto& event = EventSystem::GetInstance();
+		event.Trigger<std::pair<int, sf::Vector2i>>("SPAWN_ENEMY", { converter_def_.calling_index[Random::IntRandom(0, converter_def_.calling_index.size() - 1)], (sf::Vector2i)map_sprite_.position });
 	}
 }
 
-void Boss::enemyMechenic(float dist, const sf::Vector2f& toPlayerDir, Map* nowMap, float deltaTime)
-{
-	if (isAtack) { return; }
-	auto newState = determineNewState(dist);
+void Boss::EnemyMechenic(float dist, const sf::Vector2f& to_player_dir, Map* const now_map, float delta_time) {
+	if (is_attack_) { return; }
+	auto new_state = DetermineNewState(dist);
 
-	float angle = spMap.angle * PI / 180.0f;
-	sf::Vector2f dir{ cos(angle), sin(angle) };
+	float angle = map_sprite_.angle * kPI / 180.0f;
+	sf::Vector2f direction{ cos(angle), sin(angle) };
 
-	if (newState == Run)
-	{
-		if (Random::bitRandom() > 0.7f) spMap.angle = std::atan2(toPlayerDir.y, toPlayerDir.x) * 180.0f / PI;
-		sf::Vector2f deltaMove = enemyDef.speed * deltaTime * dir;
-		move(nowMap, deltaMove);
+	if (new_state == EnemyState::Run) {
+		if (Random::BitRandom() > 0.7f) map_sprite_.angle = std::atan2(to_player_dir.y, to_player_dir.x) * 180.0f / kPI;
+		sf::Vector2f delta_move = enemy_def_.speed * delta_time * direction;
+		Move(now_map, delta_move);
 
-		changeState(newState);
-	}
-	else if (newState == Spawn || newState == Attack)
-	{
-		if (!canChangeState()) return;
+		ChangeState(new_state);
+	} else if (new_state == EnemyState::Spawn || new_state == EnemyState::Attack) {
+		if (!CanChangeState()) return;
 
-		if (isCanAttack)
-		{
-			changeState(newState);
+		if (is_can_attack_) {
+			ChangeState(new_state);
+		} else {
+			if (Random::BitRandom() > 0.3f) map_sprite_.angle = std::atan2(to_player_dir.y, to_player_dir.x) * 180.0f / kPI;
 		}
-		else
-		{
-			if (Random::bitRandom() > 0.3f) spMap.angle = std::atan2(toPlayerDir.y, toPlayerDir.x) * 180.0f / PI;
-		}
-	}
-	else if (newState == Stay)
-	{
-		changeState(newState);
+	} else if (new_state == EnemyState::Stay) {
+		ChangeState(new_state);
 	}
 }
 
-void Boss::changeState(EnemyState newState)
-{
-	if (state == Dead) return;
+void Boss::ChangeState(EnemyState new_state) {
+	if (state_ == EnemyState::Dead) return;
 
-	if (newState == Stay)
-	{
-		animr.setAnimation(0);
-	}
-	else if (newState == Spawn)
-	{
-		animr.setAnimation(0);
-		isAtack = true;
-		isCanAttack = false;
-		nowTimeAtack = 0.0f;
-	}
-	else if (newState == Attack)
-	{
-		isAtack = true;
-		isCanAttack = false;
-		animr.setAnimation(2);
-		nowTimeAtack = 0.0f;
-	}
-	else if (newState == Run)
-	{
-		if (state != Run)
-		{
-			animr.setAnimation(1, true);
+	if (new_state == EnemyState::Stay) {
+		animr_.SetAnimation(0);
+	} else if (new_state == EnemyState::Spawn) {
+		animr_.SetAnimation(0);
+		is_attack_ = true;
+		is_can_attack_ = false;
+		now_time_attack_ = 0.0f;
+	} else if (new_state == EnemyState::Attack) {
+		is_attack_ = true;
+		is_can_attack_ = false;
+		animr_.SetAnimation(2);
+		now_time_attack_ = 0.0f;
+	} else if (new_state == EnemyState::Run) {
+		if (state_ != EnemyState::Run) {
+			animr_.SetAnimation(1, true);
 		}
 	}
-	else if (newState == Dead)
-	{
-		death();
+	else if (new_state == EnemyState::Dead) {
+		Death();
 	}
 
-	state = newState;
+	state_ = new_state;
 }
 
-EnemyState Boss::determineNewState(float dist)
-{
-	int hpPercent = (int)(abs(spMap.nowHealPoint - 1) / enemyDef.maxHealpoint * 100.0f);
-	int a = hpPercent / 25;
+const EnemyState Boss::DetermineNewState(float dist) const {
+	int hp_percent = (int)(abs(map_sprite_.now_heal_point - 1) / enemy_def_.max_healpoint * 100.0f);
+	int a = hp_percent / 25;
 	int b = a % 2;
-	if (b == 1)
-	{
-		if (dist < enemyDef.attackDist)
-		{
-			return Attack;
+	if (b == 1) {
+		if (dist < enemy_def_.attack_dist) {
+			return EnemyState::Attack;
+		} else if (dist < kTrigerDist) {
+			return EnemyState::Run;
+		} else {
+			return EnemyState::Stay;
 		}
-		else if (dist < TRIGER_DIST)
-		{
-			return Run;
-		}
-		else
-		{
-			return Stay;
-		}
-	}
-	else
-	{
-		if (dist < SPAWN_RADIUS)
-		{
-			return Spawn;
-		}
-		else
-		{
-			return Stay;
+	} else {
+		if (dist < kSpawnRadius) {
+			return EnemyState::Spawn;
+		} else {
+			return EnemyState::Stay;
 		}
 	}
 }
 
-Npc::Npc(const SpriteDef& _spDef, const MapSprite& _spMap, UIManager* _uiManager, Player* _player, const NpcDef& npcDef, int _id) :
-	Sprite(_spDef, _spMap, _id), npcDefData{ npcDef }, player{ _player }, uiManager{ _uiManager }, nowKey{ 1 }
-{
-	textSize = texture->getSize().y;
+Npc::Npc(const SpriteDef& sprite_def, const MapSprite& map_sprite, UIManager* const ui_manager, Player* const player, const NpcDef& npc_def, int id) :
+	Sprite(sprite_def, map_sprite, id), npc_def_{ npc_def }, player_{ player }, ui_manager_{ ui_manager }, now_key_{ 1 } {
+	texture_size_ = texture_->getSize().y;
 }
 
-void Npc::setEndFunc(std::function<void()>&& _endFunc) { endFunc = _endFunc; }
+void Npc::SetEndFunc(std::function<void()>&& _endFunc) { end_func_ = _endFunc; }
 
-void Npc::init()
-{
-	auto& data = Data::getInstance();
-	auto keys = data.getKeys(npcDefData.idKey, nowKey);
+void Npc::Init() {
+	auto& data = Data::GetInstance();
+	auto keys = data.GetKeys(npc_def_.id_key, now_key_);
 
 	std::map<int, std::wstring, std::greater<int>> variants;
 
-	for (int i = 0; i < keys.size(); i++)
-	{
-		auto d = data.getText(npcDefData.idKey, keys[i]);
+	for (int i = 0; i < keys.size(); i++) {
+		auto d = data.GetText(npc_def_.id_key, keys[i]);
 		variants[d.second] = d.first;
 	}
 
-	uiManager->initDialog(variants, spDef.name);
+	ui_manager_->InitDialog(variants, sprite_def_.name);
 }
 
-void Npc::stop()
-{
-	nowKey = 1;
-	endFunc();
-	endFunc = nullptr;
-	uiManager->deleteNow();
+void Npc::Stop() {
+	now_key_ = 1;
+	end_func_();
+	end_func_ = nullptr;
+	ui_manager_->DeleteNow();
 }
 
-void Npc::use() {}
+void Npc::Use() {}
 
-void Npc::update(int chooseKey)
-{
-	nowKey = chooseKey;
-	check();
+void Npc::Update(int choose_key)  {
+	now_key_ = choose_key;
+	Check();
 }
 
-void Npc::check()
-{
-	if (nowKey == 0)
-	{
-		stop();
+void Npc::Check() {
+	if (now_key_ == 0) {
+		Stop();
 	}
-	else
-	{
-		uiManager->deleteNow();
-		init();
+	else {
+		ui_manager_->DeleteNow();
+		Init();
 	}
 }
 
-FuncNpc::FuncNpc(const SpriteDef& spDef, const MapSprite& spMap, const NpcDef& npcDef, ItemManager* _itemManager,
-	UIManager* uiManager, Player* _player, int _id) :
-	Npc(spDef, spMap, uiManager, _player, npcDef, _id), isFunc{ false }, choose{ -1 }, itemManager{ _itemManager } {}
+FuncNpc::FuncNpc(const SpriteDef& sprite_def, const MapSprite& map_sprite, const NpcDef& npc_def, ItemManager* const item_manager,
+	UIManager* const ui_manager, Player* const _player, int _id) :
+	Npc(sprite_def, map_sprite, ui_manager, _player, npc_def, _id), is_func_{ false }, choose_{ -1 }, item_manager_{ item_manager } {}
 
-void FuncNpc::stop()
-{
-	Npc::stop();
+void FuncNpc::Stop() {
+	Npc::Stop();
 
-	isFunc = false;
-	choose = -1;
+	is_func_ = false;
+	choose_ = -1;
 }
 
-void FuncNpc::update(int chooseKey)
-{
-	nowKey = chooseKey;
+void FuncNpc::Update(int choose_key) {
+	now_key_ = choose_key;
 
-	if (nowKey == 999)
-	{
-		isFunc = true;
-		init();
+	if (now_key_ == 999) {
+		is_func_ = true;
+		Init();
 		return;
 	}
 
-	if (!isFunc)
-	{
-		Npc::check();
-	}
-	else
-	{
-		check();
+	if (!is_func_) {
+		Npc::Check();
+	} else {
+		Check();
 	}
 }
 
-void FuncNpc::check()
-{
-	if (nowKey == -100)
-	{
-		stop();
-	}
-	else if (nowKey == -200)
-	{
-		use();
-	}
-	else
-	{
-		choose = nowKey;
+void FuncNpc::Check() {
+	if (now_key_ == -100) {
+		Stop();
+	} else if (now_key_ == -200) {
+		Use();
+	} else {
+		choose_ = now_key_;
 	}
 }
 
-TradeNpc::TradeNpc(const SpriteDef& spDef, const MapSprite& spMap, const TraderDef& _tradeDef, const NpcDef& npcDef,
-	ItemManager* _itemManager, UIManager* uiManager, Player* _player, int _id) :
-	FuncNpc(spDef, spMap, npcDef, _itemManager, uiManager, _player, _id), tradeDef{ _tradeDef } {}
+TradeNpc::TradeNpc(const SpriteDef& sprite_def, const MapSprite& map_sprite, const TraderDef& _tradeDef, const NpcDef& npc_def,
+	ItemManager* const item_manager, UIManager* const ui_manager, Player* const _player, int _id) :
+	FuncNpc(sprite_def, map_sprite, npc_def, item_manager, ui_manager, _player, _id), trade_def_{ _tradeDef } {}
 
-void TradeNpc::init()
-{
-	if (!isFunc)
-	{
-		Npc::init();
-	}
-	else
-	{
-		uiManager->deleteNow();
+void TradeNpc::Init() {
+	if (!is_func_) {
+		Npc::Init();
+	} else {
+		ui_manager_->DeleteNow();
 
 		auto result = std::map<int, Itemble*>();
-		for (int i = 0; i < tradeDef.title.size(); i++)
-		{
-			result[tradeDef.title[i]] = itemManager->getItemble(tradeDef.title[i]);
+		for (int i = 0; i < trade_def_.title.size(); i++) {
+			result[trade_def_.title[i]] = item_manager_->GetItemble(trade_def_.title[i]);
 		}
 
-		uiManager->initTrade(result, player);
+		ui_manager_->InitTrade(result, player_);
 	}
 }
 
-void TradeNpc::use()
-{
-	if (choose == -1) return;
+void TradeNpc::Use() {
+	if (choose_ == -1) return;
 
-	Itemble* res = itemManager->getItemble(choose);
+	Itemble* itemble = item_manager_->GetItemble(choose_);
 
-	if (res->cost > player->money) return;
+	if (itemble->GetCost() > player_->GetMoney()) return;
 
-	player->money -= res->cost;
-	player->takeItem(res);
+	player_->SetMoney(player_->GetMoney() - itemble->GetCost());
+	player_->TakeItem(itemble);
 
-	choose = -1;
+	choose_ = -1;
 
-	init();
+	Init();
 }
 
-TravelerNpc::TravelerNpc(const SpriteDef& spDef, const MapSprite& spMap, const NpcDef& npcDef,
-	UIManager* uiManager, ItemManager* _itemManager, Player* _player, int _id) :
-	FuncNpc(spDef, spMap, npcDef, _itemManager, uiManager, _player, _id) {}
+TravelerNpc::TravelerNpc(const SpriteDef& sprite_def, const MapSprite& map_sprite, const NpcDef& npc_def,
+	UIManager* const ui_manager, ItemManager* const item_manager, Player* const _player, int _id) :
+	FuncNpc(sprite_def, map_sprite, npc_def, item_manager, ui_manager, _player, _id) {}
 
-void TravelerNpc::init()
-{
-	if (!isFunc)
-	{
-		Npc::init();
-	}
-	else
-	{
-		uiManager->deleteNow();
+void TravelerNpc::Init() {
+	if (!is_func_) {
+		Npc::Init();
+	} else {
+		ui_manager_->DeleteNow();
 
 		auto result = std::map<int, Itemble*>();
-		result[0] = itemManager->getItemble(travelerDefs[0].id);
+		result[0] = item_manager_->GetItemble(traveler_defs[0].id);
 
-		int maxSize = 1;
-		auto& state = GameState::getInstance();
-		int levelN = state.data.levelNumber;
-		if (state.data.killFirst &&
-			state.data.killSecond &&
-			state.data.killTherd)
-		{
-			maxSize = 5;
-		}
-		else
-		{
-			maxSize = std::min(levelN / 3, 4);
+		int max_size = 1;
+		auto& state = GameState::GetInstance();
+		int level_number = state.data.level_number;
+		if (state.data.kill_first_converter &&
+			state.data.kill_second_converter &&
+			state.data.kill_therd_converter) {
+			max_size = 5;
+		} else {
+			max_size = std::min(level_number / 3, 4);
 		}
 
-		for (int i = 1; i < maxSize; i++)
-		{
-			result[i] = itemManager->getItemble(travelerDefs[i].id);
+		for (int i = 1; i < max_size; i++) {
+			result[i] = item_manager_->GetItemble(traveler_defs[i].id);
 		}
 
-		uiManager->initTrade(result, player);
+		ui_manager_->InitTrade(result, player_);
 	}
 }
 
-void TravelerNpc::use()
-{
-	if (choose == -1) return;
+void TravelerNpc::Use() {
+	if (choose_ == -1) return;
 
-	if (travelerDefs[choose].cost > player->money) return;
+	if (traveler_defs[choose_].cost > player_->GetMoney()) return;
 
-	player->money -= travelerDefs[choose].cost;
+	player_->SetMoney(player_->GetMoney() - traveler_defs[choose_].cost);
 
-	int temp = travelerDefs[choose].effect;
-	stop();
+	int temp = traveler_defs[choose_].effect;
+	Stop();
 
-	auto& event = EventSystem::getInstance();
-	event.trigger<int>("SWAPLOC", temp);
+	auto& event = EventSystem::GetInstance();
+	event.Trigger<int>("SWAPLOC", temp);
 }
 
-ChangerNpc::ChangerNpc(const SpriteDef& spDef, const MapSprite& spMap, const NpcDef& npcDef,
-	UIManager* uiManager, ItemManager* itemManager, Player* _player, int _id) :
-	FuncNpc(spDef, spMap, npcDef, itemManager, uiManager, _player, _id)
-{
-	auto& state = GameState::getInstance();
-	coef = state.data.changerCoef;
+ChangerNpc::ChangerNpc(const SpriteDef& sprite_def, const MapSprite& map_sprite, const NpcDef& npc_def,
+	UIManager* const ui_manager, ItemManager* const item_manager, Player* const _player, int _id) :
+	FuncNpc(sprite_def, map_sprite, npc_def, item_manager, ui_manager, _player, _id) {
+	auto& state = GameState::GetInstance();
+	coef_ = state.data.changer_coef;
 }
 
-void ChangerNpc::init()
-{
-	if (!isFunc)
-	{
-		Npc::init();
-	}
-	else
-	{
-		uiManager->deleteNow();
+void ChangerNpc::Init() {
+	if (!is_func_) {
+		Npc::Init();
+	} else {
+		ui_manager_->DeleteNow();
 
-		uiManager->initChanger(coef, player);
+		ui_manager_->InitChanger(coef_, player_);
 	}
 }
 
-void ChangerNpc::use()
-{
-	if (player->details - 10 < 0) return;
+void ChangerNpc::Use() {
+	if (player_->GetDetails() - 10 < 0) return;
 
-	player->details -= 10;
-	player->money += 10 * coef;
-	auto& questM = QuestManager::getInstance();
-	questM.updateQuests(CollectionMoney, 10 * coef);
+	player_->SetDetails(player_->GetDetails() - 10);
+	player_->SetMoney(player_->GetMoney() + 10 * coef_);
+	auto& quest_manager = QuestManager::GetInstance();
+	quest_manager.UpdateQuests(QuestType::CollectionMoney, 10 * coef_);
 
-	init();
+	Init();
 }
 
-PortalNpc::PortalNpc(const SpriteDef& spDef, const MapSprite& spMap, const NpcDef& npcDef,
-	UIManager* uiManager, ItemManager* itemManager, Player* player, int _id) :
-	FuncNpc(spDef, spMap, npcDef, itemManager, uiManager, player, _id) {}
+PortalNpc::PortalNpc(const SpriteDef& sprite_def, const MapSprite& map_sprite, const NpcDef& npc_def,
+	UIManager* const ui_manager, ItemManager* const item_manager, Player* const player, int _id) :
+	FuncNpc(sprite_def, map_sprite, npc_def, item_manager, ui_manager, player, _id) {}
 
-void PortalNpc::init()
-{
-	if (!isFunc)
-	{
-		Npc::init();
-	}
-	else
-	{
-		FuncNpc::stop();
+void PortalNpc::Init() {
+	if (!is_func_) {
+		Npc::Init();
+	} else {
+		FuncNpc::Stop();
 
-		use();
+		Use();
 	}
 }
 
-void PortalNpc::use()
-{
-	auto& event = EventSystem::getInstance();
-	event.trigger<int>("SWAPLOC", BASE_N);
+void PortalNpc::Use() {
+	auto& event = EventSystem::GetInstance();
+	event.Trigger<int>("SWAPLOC", kBaseNumber);
 }
 
-MechanicNpc::MechanicNpc(const SpriteDef& spDef, const MapSprite& spMap, const NpcDef& npcDef,
-	UIManager* uiManager, ItemManager* itemManager, Player* player, int _id) :
-	FuncNpc(spDef, spMap, npcDef, itemManager, uiManager, player, _id), typeUpgade{ -1 } {}
+MechanicNpc::MechanicNpc(const SpriteDef& sprite_def, const MapSprite& map_sprite, const NpcDef& npc_def,
+	UIManager* const ui_manager, ItemManager* const item_manager, Player* const player, int _id) :
+	FuncNpc(sprite_def, map_sprite, npc_def, item_manager, ui_manager, player, _id), type_upgade_{ -1 } {}
 
-void MechanicNpc::init()
-{
-	if (!isFunc)
-	{
-		Npc::init();
-	}
-	else
-	{
-		uiManager->deleteNow();
+void MechanicNpc::Init() {
+	if (!is_func_) {
+		Npc::Init();
+	} else {
+		ui_manager_->DeleteNow();
 
-		uiManager->initMechanic(player, (choose == -1 ? nullptr : player->guns[choose]));
+		ui_manager_->InitMechanic(player_, (choose_ == -1 ? nullptr : player_->GetGun(choose_)));
 	}
 }
 
-void MechanicNpc::stop()
-{
-	FuncNpc::stop();
-	typeUpgade = -1;
+void MechanicNpc::Stop() {
+	FuncNpc::Stop();
+	type_upgade_ = -1;
 }
 
-void MechanicNpc::use()
-{
-	if (choose == -1 || typeUpgade == -1) return;
+void MechanicNpc::Use() {
+	if (choose_ == -1 || type_upgade_ == -1) return;
 
-	Gun* nowGun = player->guns[choose];
+	Gun* now_gun = player_->GetGun(choose_);
 
-	if (player->money < 50 || player->details < 15 || nowGun->upgradeCount >= 5) return;
+	if (player_->GetMoney() < 50 || player_->GetDetails() < 15 || now_gun->GetUpgradeCount() >= 5) return;
 
-	player->money -= 50;
-	player->details -= 15;
+	player_->SetMoney(player_->GetMoney() - 50);
+	player_->SetDetails(player_->GetDetails() - 15);
 
-	Improve* imp = nullptr;
-	if (typeUpgade == 101)
-	{
-		imp = nowGun->deleteImprove(Damage);
-		nowGun->damage += 3;
-	}
-	else if (typeUpgade == 102)
-	{
-		imp = nowGun->deleteImprove(Magazin);
-		nowGun->maxCount += 5;
-	}
-	else if (typeUpgade == 103)
-	{
-		imp = nowGun->deleteImprove(Spread);
-		nowGun->maxRad += 3;
+	Improve* improve = nullptr;
+	if (type_upgade_ == 101) {
+		improve = now_gun->DeleteImprove(ImproveType::Damage);
+		now_gun->SetDamage(now_gun->GetDamage() + 3);
+	} else if (type_upgade_ == 102) {
+		improve = now_gun->DeleteImprove(ImproveType::Magazin);
+		now_gun->SetMaxPatronsCount(now_gun->GetMaxPatronsCount() + 5);
+	} else if (type_upgade_ == 103) {
+		improve = now_gun->DeleteImprove(ImproveType::Spread);
+		now_gun->SetMaxRadius(now_gun->GetMaxRadius() - 3);
 	}
 
-	nowGun->trySetImprove(imp);
-	nowGun->upgradeCount++;
+	now_gun->TrySetImprove(improve);
+	now_gun->TakeOneUpgrade();
 
-	typeUpgade = -1;
-	choose = -1;
-	init();
+	type_upgade_ = -1;
+	choose_ = -1;
+	Init();
 }
 
-void MechanicNpc::check()
-{
-	if (nowKey == -100)
-	{
-		stop();
-	}
-	else if (nowKey == -200)
-	{
-		use();
-	}
-	else if (nowKey == 1 || nowKey == 2)
-	{
-		choose = nowKey;
-		init();
+void MechanicNpc::Check() {
+	if (now_key_ == -100) {
+		Stop();
+	} else if (now_key_ == -200) {
+		Use();
+	} else if (now_key_ == 1 || now_key_ == 2) {
+		choose_ = now_key_;
+		Init();
 		return;
-	}
-	else
-	{
-		typeUpgade = nowKey;
+	} else {
+		type_upgade_ = now_key_;
 	}
 }
 
-QuestNpc::QuestNpc(const SpriteDef& spDef, const MapSprite& spMap, const NpcDef& npcDef,
-	UIManager* uiManager, ItemManager* itemManager, Player* player, int _id) :
-	FuncNpc(spDef, spMap, npcDef, itemManager, uiManager, player, _id) {}
+QuestNpc::QuestNpc(const SpriteDef& sprite_def, const MapSprite& map_sprite, const NpcDef& npc_def,
+	UIManager* const ui_manager, ItemManager* const item_manager, Player* const player, int _id) :
+	FuncNpc(sprite_def, map_sprite, npc_def, item_manager, ui_manager, player, _id) {}
 
-void QuestNpc::init()
-{
-	if (!isFunc)
-	{
-		Npc::init();
-	}
-	else
-	{
-		uiManager->deleteNow();
+void QuestNpc::Init() {
+	if (!is_func_) {
+		Npc::Init();
+	} else {
+		ui_manager_->DeleteNow();
 
-		auto& questM = QuestManager::getInstance();
-		uiManager->initQuest((choose == -1 ? nullptr : questM.quests[choose - 1]), player);
+		auto& quest_manager = QuestManager::GetInstance();
+		ui_manager_->InitQuest((choose_ == -1 ? nullptr : quest_manager.GetQuests()[choose_ - 1]), player_);
 	}
 }
 
-void QuestNpc::use()
-{
-	if (choose == -1) return;
+void QuestNpc::Use() {
+	if (choose_ == -1) return;
 
-	auto& questM = QuestManager::getInstance();
-	player->money += questM.deleteQuest(questM.quests[choose - 1]);
+	auto& quest_manager = QuestManager::GetInstance();
+	player_->SetMoney(player_->GetMoney() + quest_manager.DeleteQuest(quest_manager.GetQuests()[choose_ - 1]));
 
-	choose = -1;
-	init();
+	choose_ = -1;
+	Init();
 }
 
-void QuestNpc::check()
-{
-	if (nowKey == -100)
-	{
-		stop();
-	}
-	else if (nowKey == -200)
-	{
-		use();
-	}
-	else if (nowKey == -300)
-	{
-		int type = Random::intRandom(0, 2);
-		QuestData data;
-		data.progress = 0;
-		data.type = QuestType(type);
+void QuestNpc::Check() {
+	if (now_key_ == -100) {
+		Stop();
+	} else if (now_key_ == -200) {
+		Use();
+	} else if (now_key_ == -300) {
+		int type = Random::IntRandom(0, 2);
+		QuestData quest_data;
+		quest_data.progress = 0;
+		quest_data.type = QuestType(type);
 
-		if (type == 0)
-		{
-			data.target = Random::intRandom(5, 15);
-			data.rewardCoins = Random::intRandom(data.target * 10, data.target * 15);
-		}
-		else if (type == 1)
-		{
-			data.target = Random::intRandom(100, 300);
-			data.rewardCoins = Random::intRandom((int)(data.target * 1.1f), (int)(data.target * 1.3f));
-		}
-		else if (type == 2)
-		{
-			data.target = Random::intRandom(10, 25);
-			data.rewardCoins = data.rewardCoins = Random::intRandom(data.target * 10, data.target * 15);
+		if (type == 0) {
+			quest_data.target = Random::IntRandom(5, 15);
+			quest_data.reward_coins = Random::IntRandom(quest_data.target * 10, quest_data.target * 15);
+		} else if (type == 1) {
+			quest_data.target = Random::IntRandom(100, 300);
+			quest_data.reward_coins = Random::IntRandom((int)(quest_data.target * 1.1f), (int)(quest_data.target * 1.3f));
+		} else if (type == 2) {
+			quest_data.target = Random::IntRandom(10, 25);
+			quest_data.reward_coins = quest_data.reward_coins = Random::IntRandom(quest_data.target * 10, quest_data.target * 15);
 		}
 
-		auto& questM = QuestManager::getInstance();
-		questM.addQuest(data);
+		auto& quest_manager = QuestManager::GetInstance();
+		quest_manager.AddQuest(quest_data);
 
-		init();
-	}
-	else if (nowKey == 1 || nowKey == 2 || nowKey == 3)
-	{
-		choose = nowKey;
-		init();
+		Init();
+	} else if (now_key_ == 1 || now_key_ == 2 || now_key_ == 3) {
+		choose_ = now_key_;
+		Init();
 	}
 }

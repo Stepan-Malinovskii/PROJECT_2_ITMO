@@ -1,13 +1,12 @@
-#pragma once
 #ifndef PLAYER
 #define PLAYER
 
-#include "Map.h"
-#include "Resources.h"
-#include "Animation.h"
-#include "Weapon.h"
-#include "Raycast.h"
-#include "CONST.h"
+#include "map.h"
+#include "resources.h"
+#include "animation.h"
+#include "weapon.h"
+#include "raycast.h"
+#include "const.h"
 #include <SFML/Graphics/RenderTarget.hpp>
 #include <SFML/Graphics/Sprite.hpp>
 #include <SFML/Window/Event.hpp>
@@ -17,52 +16,72 @@
 
 class Inventory;
 
-class Player
-{
+class Player {
 public:
-	Player(Enemy* sprite, const PlayerDef& def, Map* _nowMap);
-	~Player();
-	void setInventory(Inventory* invent);
-	void updateMouseData(const sf::Vector2f& mousePos, float deltaTime);
-	void checkBoost(bool isPressed, float deltaTime);
-	void move(const sf::Vector2f& deltaPos, float deltaTime);
-	void jump();
-	Sprite* dialog();
-	void takeDamage(float damage);
-	void fire(int gun = -1);
-	void swapGun(bool flag);
-	void reloadingGun();
-	Gun* setGun(Gun* gun, int pos);
-	Gun* getGun(int pos);
-	float getMoveSpeed();
-	void takeItem(Itemble*, int cnt = 1);
-	void heal();
-
-	Gun* getNowGun();
-	PlayerDef getPlayerDef();
-	void setNemMap(Map* map);
-
-	Enemy* enemy;
-	Gun* kick;
-	float pitch, posZ, maxEnergy, nowEnergy;
-	float defence, nowStrenght, maxStrenght;
-	float mouseSpeed;
-	int patrons;
-	int money;
-	int details;
-	Item* nowHeal;
-	Gun* guns[3]{};
-	sf::Vector2f shakeDelta;
+	Player(Enemy* const sprite, const PlayerDef& def, Map* nowMap);
+	~Player() = default;
+	void SetInventory(Inventory* const inventory);
+	void UpdateMouseData(const sf::Vector2f& mouse_position, float delta_time);
+	void CheckBoost(bool is_pressed, float delta_time);
+	void Move(const sf::Vector2f& delta_position, float delta_time);
+	void Jump();
+	const Sprite* const Dialog() const;
+	void TakeDamage(float damage);
+	void Fire(int gun = -1) const;
+	void SwapGun(bool flag);
+	void ReloadingGun();
+	void TakeItem(Itemble* const itemble, int cnt = 1);
+	void Heal();
+	const Gun* const SetGun(Gun* const gun, int position);
+	Gun* const GetGun(int pos) const;
+	const float GetMoveSpeed() const;
+	const Gun* const GetNowGun() const;
+	const Gun* const GetKick() const;
+	void SetKick(Gun* const gun);
+	const PlayerDef GetPlayerDef() const;
+	void SetNemMap(Map* map);
+	void ResetPlayer(const PlayerDef player_def);
+	const int GetMoney() const;
+	void SetMoney(int new_money);
+	const int GetDetails() const;
+	void SetDetails(int new_details);
+	Enemy* const GetEnemy() const;
+	const float GetMaxEnergy() const;
+	const float GetNowEnergy() const;
+	void SetMaxEnergy(float value);
+	const float GetMaxStrenght() const;
+	const float GetNowStrenght() const;
+	void SetMaxStrenght(float value);
+	void SetDefence(float value);
+	void SetPatrons(int new_count);
+	const int GetPatronsCount() const;
+	const Item* const GetNowHeal() const;
+	void SetNowHeal(Item* const heal);
+	void SetMouseSpeed(float value);
+	const int GetPositionZ() const;
+	const int GetPitch() const;
+	const sf::Vector2f& GetShakeDelta() const;
 private:
-	Inventory* invent;
-	bool isJump, jumpFlag;
-	Map* nowMap;
-	int nowGun;
-	float nowSpeed, boostSpeed, shakeTime;
+	void ResetPlayer();
+	void RhakeCamera(float delta_time, bool is_run);
+	void Gravity(float delta_time);
 
-	void resetPlayer();
-	void shakeCamera(float deltaTime, bool isRun);
-	void gravity(float deltaTime);
+	Enemy* const enemy_;
+	Gun* kick_;
+	Inventory* inventory_;
+	Map* now_map_;
+	Item* now_heal_;
+	Gun* guns_[3]{};
+	bool is_jump_, jump_flag_;
+	float now_speed_, boost_speed_, shake_time_;
+	float pitch_, pos_z_, max_energy_, now_energy_;
+	float defence_, now_strenght_, max_strenght_;
+	float mouse_speed_;
+	int patrons_;
+	int money_;
+	int details_;
+	int now_gun_;
+	sf::Vector2f shake_delta_;
 };
 
 #endif // !PLAYER
